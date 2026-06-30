@@ -13,3 +13,4 @@ ALL PHASES COMPLETE
 -->
 
 phase 01: DONE — foundation: gauntlet CLI (run/list/report), Pydantic config + YAML loader, structured logging, TargetAdapter ABC + HTTP adapter (openai/anthropic/openrouter/ollama/openai-compatible + custom providers), RunRecord model. 41 tests green, ruff clean. reviewer + tester STATUS: PASS.
+phase 02: DONE — attack-pack schema (Attack model + discriminated success_when union), packloader with strict validation + license gating (allowlist + opt-in), 12 bundled Apache-2.0 packs (6 prompt-injection + 6 jailbreak, OWASP 2025/ATLAS mapped), CLI list --packs wired. 79 tests green (41+38), ruff clean. reviewer + tester STATUS: PASS.

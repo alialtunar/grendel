@@ -11,3 +11,5 @@ phase 03: BLOCKED — tester STATUS: BLOCKING, 2 integration tests fail (DB time
 
 ALL PHASES COMPLETE
 -->
+
+phase 01: DONE — foundation: gauntlet CLI (run/list/report), Pydantic config + YAML loader, structured logging, TargetAdapter ABC + HTTP adapter (openai/anthropic/openrouter/ollama/openai-compatible + custom providers), RunRecord model. 41 tests green, ruff clean. reviewer + tester STATUS: PASS.

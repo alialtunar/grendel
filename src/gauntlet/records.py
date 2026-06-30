@@ -76,6 +76,9 @@ class AttemptRecord(BaseModel):
     response_text: str | None = None
     raw_response: dict | None = None
     tool_calls: list[dict] = []
+    # Fix #7: preserve the not-applicable signal that ``tool_calls or []`` collapses —
+    # True iff the adapter observed tools (response.tool_calls is not None).
+    tool_observed: bool = False
     verdict: Verdict = Verdict.SKIPPED
     score_tier: str | None = None
     score_detail: ScoreDetail | None = None

@@ -23,6 +23,9 @@ class AdapterResponse(BaseModel):
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     latency_ms: float | None = None
+    # Phase 7 (additive, tri-state): None = adapter does not observe tools; [] = agent
+    # observed zero calls; list = observed calls (each a ToolCall snapshot).
+    tool_calls: list[dict] | None = None
 
 
 class TargetAdapter(ABC):

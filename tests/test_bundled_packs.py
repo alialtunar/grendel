@@ -21,9 +21,10 @@ def test_packs_dir_is_populated() -> None:
         assert list(sub.glob("*.yaml")), f"no yaml files in {sub}"
 
 
-def test_loads_exactly_twelve() -> None:
+def test_loads_exactly_seventeen() -> None:
+    # 12 string packs (prompt-injection + jailbreak) + 5 side-effect tool-abuse packs.
     attacks = load_packs(default_packs_dir())
-    assert len(attacks) == 12
+    assert len(attacks) == 17
 
 
 def test_ids_unique_and_match_path() -> None:
@@ -40,19 +41,21 @@ def test_category_counts() -> None:
     counts: dict[str, int] = {}
     for a in attacks:
         counts[a.category] = counts.get(a.category, 0) + 1
-    assert counts == {"prompt-injection": 6, "jailbreak": 6}
+    assert counts == {"prompt-injection": 6, "jailbreak": 6, "tool-abuse": 5}
 
 
 def test_all_fields_well_formed() -> None:
     attacks = load_packs(default_packs_dir())
     for a in attacks:
         assert a.license in ALLOWED_LICENSES
-        assert a.success_when.type == "string"
+        # tool-abuse packs are side-effect checks; all others are string checks.
+        expected_type = "side-effect" if a.category == "tool-abuse" else "string"
+        assert a.success_when.type == expected_type
         assert OWASP_RE.match(a.owasp)
         assert ATLAS_RE.match(a.atlas)
 
 
-def test_list_packs_twelve_rows_license_ok() -> None:
+def test_list_packs_seventeen_rows_license_ok() -> None:
     infos = list_packs(default_packs_dir())
-    assert len(infos) == 12
+    assert len(infos) == 17
     assert all(info.license_ok for info in infos)

@@ -40,15 +40,25 @@ class RunOptions(BaseModel):
     retry_seed: int | None = None
 
 
+class McpConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    command: list[str] | None = None  # stdio server launch argv (real path; Phase 8 detail)
+    url: str | None = None  # or a server URL
+    tool: str | None = None  # optional default tool to probe
+
+
 class TargetConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    type: Literal["http"] = "http"
-    provider: str
-    model: str
+    type: Literal["http", "python", "agent", "mcp"] = "http"
+    provider: str | None = None  # now optional; required only for type == "http"
+    model: str | None = None  # now optional; defaults to entrypoint for python/agent
     base_url: str | None = None
     api_key_env: str | None = None
     extra_headers: dict[str, str] = {}
+    entrypoint: str | None = None  # "module:attr" — required for python/agent
+    mcp: McpConfig | None = None  # required for mcp
 
 
 class CustomProviderConfig(BaseModel):
@@ -111,6 +121,28 @@ class GauntletConfig(BaseModel):
 
         known = set(PRESETS) | set(self.providers)
         for target_name, target in self.targets.items():
+            # Fix #2: scope provider/collision checks to http; non-http targets have their
+            # own required-field validation and no provider.
+            if target.type != "http":
+                if target.type in ("python", "agent") and not target.entrypoint:
+                    raise ConfigError(
+                        f"target {target_name!r} of type {target.type!r} requires "
+                        f"'entrypoint' (\"module:attr\")"
+                    )
+                if target.type == "mcp" and (
+                    target.mcp is None or not (target.mcp.command or target.mcp.url)
+                ):
+                    raise ConfigError(
+                        f"target {target_name!r} of type 'mcp' requires an 'mcp' block "
+                        f"with 'command' or 'url'"
+                    )
+                continue
+            # Fix #6: provider/model are now Optional at the field level; re-require them
+            # for http (else model=None would blow up at RunRecord build time).
+            if target.provider is None or target.model is None:
+                raise ConfigError(
+                    f"target {target_name!r} of type 'http' requires 'provider' and 'model'"
+                )
             if target.provider not in known:
                 raise ConfigError(
                     f"target {target_name!r} references unknown provider "

@@ -65,6 +65,7 @@ def load_packs(
         seen[attack.id] = path
         _check_coherence(path, attack)
         _check_license(path, attack, allow_unlisted_licenses=allow_unlisted_licenses)
+        _check_side_effect_assertion(path, attack)
         attacks.append(attack)
 
     attacks.sort(key=lambda a: a.id)
@@ -110,6 +111,24 @@ def _check_coherence(path: Path, attack: Attack) -> None:
         raise PackError(
             f"id {attack.id!r} does not match expected {expected_id!r} from path {path}"
         )
+
+
+def _check_side_effect_assertion(path: Path, attack: Attack) -> None:
+    """Fix #8: fail fast on a malformed side-effect assertion (PackError naming the file).
+
+    Non-breaking for string/classifier/judge packs (they carry no ``assert_``).
+    """
+    check = attack.success_when
+    if getattr(check, "type", None) != "side-effect":
+        return
+    from .sideeffect import AssertionSyntaxError, parse_assertion
+
+    try:
+        parse_assertion(check.assert_)
+    except AssertionSyntaxError as exc:
+        raise PackError(
+            f"attack {attack.id!r} in {path} has a malformed side-effect assertion: {exc}"
+        ) from exc
 
 
 def _check_license(path: Path, attack: Attack, *, allow_unlisted_licenses: bool) -> None:

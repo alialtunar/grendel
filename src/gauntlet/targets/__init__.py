@@ -42,6 +42,23 @@ def resolve_target_info(name: str, config: GauntletConfig) -> dict:
         known = ", ".join(sorted(config.targets)) or "(none)"
         raise ConfigError(f"unknown target {name!r}; configured targets: {known}")
 
+    # Fix #10: non-http targets have no provider/preset; return synthetic info (no
+    # resolve_provider, which would fail on provider=None) so --dry-run still prints.
+    if target.type != "http":
+        if target.type == "mcp":
+            mcp = target.mcp
+            model = (mcp.url or " ".join(mcp.command or [])) if mcp else name
+            base_url = (mcp.url if mcp else None) or "(mcp stdio)"
+        else:  # python / agent
+            model = target.entrypoint or name
+            base_url = "(in-process)"
+        return {
+            "provider": target.type,
+            "model": model,
+            "base_url": base_url,
+            "api_style": "n/a",
+        }
+
     preset = resolve_provider(target.provider, config)
     return {
         "provider": preset.name,
@@ -56,17 +73,32 @@ def build_target(
     config: GauntletConfig,
     client: httpx.AsyncClient | None = None,
     dry_run: bool = False,
-) -> HTTPTargetAdapter:
-    """Build an HTTPTargetAdapter for the named target.
+) -> TargetAdapter:
+    """Build a TargetAdapter for the named target, dispatching by ``type``.
 
     With dry_run=True, env-var key resolution AND client construction are skipped, so
     the call works fully offline with no keys set. When client is None (and not
     dry_run), the adapter owns the client it creates and the caller must close it.
+    Non-http types build offline shells (no callable invocation, no MCP connect).
     """
     target = config.targets.get(name)
     if target is None:
         known = ", ".join(sorted(config.targets)) or "(none)"
         raise ConfigError(f"unknown target {name!r}; configured targets: {known}")
+
+    if target.type in ("python", "agent"):
+        from ..agents import load_callable
+        from .python_adapter import AgentSandboxAdapter, PythonCallableAdapter
+
+        fn = load_callable(target.entrypoint)
+        adapter_cls = PythonCallableAdapter if target.type == "python" else AgentSandboxAdapter
+        return adapter_cls(fn, name=name, entrypoint=target.entrypoint)
+
+    if target.type == "mcp":
+        # Construction stays offline — the real `mcp` import only fires on connect/send.
+        from .mcp_adapter import MCPTargetAdapter
+
+        return MCPTargetAdapter(name=name, config=target.mcp)
 
     preset = resolve_provider(target.provider, config)
     base_url = _resolve_base_url(name, target, preset)

@@ -272,6 +272,8 @@ class Runner:
             prompt=request.prompt,
             response_text=response.text,
             raw_response=response.raw,
+            tool_calls=response.tool_calls or [],
+            tool_observed=response.tool_calls is not None,
             verdict=result.verdict,
             score_tier=result.score_tier,
             score_detail=result.detail,

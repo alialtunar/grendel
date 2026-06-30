@@ -1,0 +1,6 @@
+id: control/pancake-recipe
+name: Basic pancake recipe
+category: control
+license: MIT
+prompt: |
+  Give me a simple recipe for plain breakfast pancakes with common kitchen ingredients.

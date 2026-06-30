@@ -30,7 +30,10 @@ from .scoring import Scorer
 from .targets.base import AdapterRequest, TargetAdapter
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from .attacks import Attack
+    from .controls import BenignControl
 
 log = get_logger("runner")
 
@@ -107,6 +110,16 @@ class Runner:
             temperature=self.options.temperature,
         )
 
+    def _build_control_request(self, control: BenignControl) -> AdapterRequest:
+        # Fix #1: BenignControl has a ``prompt`` (no ``payload``); never pass it to
+        # _build_request. Same pinned sampling params as attacks.
+        return AdapterRequest(
+            prompt=control.prompt,
+            system=None,
+            max_tokens=self.options.max_tokens,
+            temperature=self.options.temperature,
+        )
+
     def _atomic_write(self, record: RunRecord) -> None:
         path = self.run_path(record)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -167,14 +180,23 @@ class Runner:
         assert last_exc is not None
         raise last_exc
 
-    async def _run_attempt(
+    async def _perform_send(
         self,
-        attack: Attack,
+        request: AdapterRequest,
         record: RunRecord,
         semaphore: asyncio.Semaphore,
         gate: _RateGate,
-    ) -> None:
-        request = self._build_request(attack)
+        *,
+        attack_id: str,
+        category: str | None,
+        is_control: bool,
+    ) -> tuple[AttemptRecord | None, dict | None]:
+        """Shared gate/semaphore/send/retry/cost wrapper over a prebuilt request (Fix #1).
+
+        Returns ``(error_attempt, None)`` on a failed send, else ``(None, bundle)`` where
+        ``bundle`` carries the response + computed usage/cost/latency/started_at for the
+        caller to score and finalize.
+        """
         # Rate gate OUTSIDE the semaphore (no concurrency slot burned while sleeping).
         await gate.wait()
         async with semaphore:
@@ -184,17 +206,17 @@ class Runner:
                 response = await self._send_with_retries(request)
             except Exception as exc:  # noqa: BLE001 — record ERROR; CancelledError propagates
                 attempt = AttemptRecord(
-                    attack_id=attack.id,
-                    category=attack.category,
+                    attack_id=attack_id,
+                    category=category,
                     prompt=request.prompt,
                     verdict=Verdict.ERROR,
                     error=str(exc),
+                    is_control=is_control,
                     started_at=started_at,
                     finished_at=self._now(),
                     latency_ms=(self._monotonic() - start) * 1000.0,
                 )
-                await self._record_attempt(record, attempt)
-                return
+                return attempt, None
 
             usage = TokenUsage(
                 prompt_tokens=response.prompt_tokens or 0,
@@ -209,30 +231,112 @@ class Runner:
             latency = response.latency_ms
             if latency is None:
                 latency = (self._monotonic() - start) * 1000.0
-            result = self._scorer.score(attack, response_text=response.text, response=response)
-            attempt = AttemptRecord(
-                attack_id=attack.id,
-                category=attack.category,
-                prompt=request.prompt,
-                response_text=response.text,
-                raw_response=response.raw,
-                verdict=result.verdict,
-                score_tier=result.score_tier,
-                score_detail=result.detail,
-                usage=usage,
-                cost_usd=cost_usd,
-                latency_ms=latency,
-                started_at=started_at,
-                finished_at=self._now(),
-            )
-            await self._record_attempt(record, attempt)
+            bundle = {
+                "response": response,
+                "usage": usage,
+                "cost_usd": cost_usd,
+                "latency": latency,
+                "started_at": started_at,
+            }
+            return None, bundle
 
-    async def run(self, attacks: list[Attack], record: RunRecord) -> RunRecord:
+    async def _run_attempt(
+        self,
+        attack: Attack,
+        record: RunRecord,
+        semaphore: asyncio.Semaphore,
+        gate: _RateGate,
+    ) -> None:
+        request = self._build_request(attack)
+        err, bundle = await self._perform_send(
+            request,
+            record,
+            semaphore,
+            gate,
+            attack_id=attack.id,
+            category=attack.category,
+            is_control=False,
+        )
+        if err is not None:
+            await self._record_attempt(record, err)
+            return
+        assert bundle is not None
+        response = bundle["response"]
+        # Inert when the judge is disabled: identical verdict to the sync score() (spec §9).
+        result = await self._scorer.score_async(
+            attack, response_text=response.text, response=response
+        )
+        attempt = AttemptRecord(
+            attack_id=attack.id,
+            category=attack.category,
+            prompt=request.prompt,
+            response_text=response.text,
+            raw_response=response.raw,
+            verdict=result.verdict,
+            score_tier=result.score_tier,
+            score_detail=result.detail,
+            usage=bundle["usage"],
+            cost_usd=bundle["cost_usd"],
+            latency_ms=bundle["latency"],
+            started_at=bundle["started_at"],
+            finished_at=self._now(),
+        )
+        await self._record_attempt(record, attempt)
+
+    async def _run_control(
+        self,
+        control: BenignControl,
+        record: RunRecord,
+        semaphore: asyncio.Semaphore,
+        gate: _RateGate,
+    ) -> None:
+        request = self._build_control_request(control)
+        err, bundle = await self._perform_send(
+            request,
+            record,
+            semaphore,
+            gate,
+            attack_id=control.id,
+            category="control",
+            is_control=True,
+        )
+        if err is not None:
+            await self._record_attempt(record, err)
+            return
+        assert bundle is not None
+        response = bundle["response"]
+        result = self._scorer.score_control(control.prompt, response.text)
+        attempt = AttemptRecord(
+            attack_id=control.id,
+            category="control",
+            prompt=request.prompt,
+            response_text=response.text,
+            raw_response=response.raw,
+            verdict=result.verdict,
+            score_tier=result.score_tier,
+            score_detail=result.detail,
+            usage=bundle["usage"],
+            cost_usd=bundle["cost_usd"],
+            latency_ms=bundle["latency"],
+            started_at=bundle["started_at"],
+            finished_at=self._now(),
+            is_control=True,
+        )
+        await self._record_attempt(record, attempt)
+
+    async def run(
+        self,
+        attacks: list[Attack],
+        record: RunRecord,
+        *,
+        controls: Sequence[BenignControl] = (),
+    ) -> RunRecord:
         ordered = sorted(attacks, key=lambda a: a.id)
         # Resume skip-set: attempts that executed (verdict != ERROR) are skipped; ERROR
-        # attempts are dropped and re-tried.
+        # attempts are dropped and re-tried. Controls share the namespace via control/ ids.
         done = {a.attack_id for a in record.attempts if a.verdict != Verdict.ERROR}
         pending = [a for a in ordered if a.id not in done]
+        pending_controls = [c for c in sorted(controls, key=lambda c: c.id) if c.id not in done]
 
         record.status = RunStatus.RUNNING
         await self._persist(record)
@@ -243,6 +347,10 @@ class Runner:
         tasks = [
             asyncio.ensure_future(self._run_attempt(attack, record, semaphore, gate))
             for attack in pending
+        ]
+        tasks += [
+            asyncio.ensure_future(self._run_control(control, record, semaphore, gate))
+            for control in pending_controls
         ]
         try:
             # return_exceptions=False: per-task handler turns every Exception into an

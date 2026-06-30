@@ -10,11 +10,14 @@ from typing import Annotated
 import typer
 
 from .config import load_config
+from .controls import load_controls
 from .errors import ConfigError, PackError
+from .judge import AdapterJudge, get_rubric
 from .logging_setup import configure_logging, get_logger
 from .packloader import default_packs_dir, list_packs, load_packs
 from .records import RunRecord, make_run_record
 from .runner import Runner
+from .scoring import Scorer
 from .targets import PRESETS, build_target, resolve_target_info
 
 app = typer.Typer(
@@ -87,23 +90,52 @@ def _select_attacks(attacks, pack):
     return selected
 
 
-async def _execute(adapter, options, attacks, record) -> None:
+async def _execute(
+    adapter, options, attacks, record, *, controls=(), scorer=None, judge_adapter=None
+) -> None:
     try:
-        await Runner(adapter, options).run(attacks, record)
+        await Runner(adapter, options, scorer=scorer).run(attacks, record, controls=controls)
     finally:
         await adapter.aclose()
+        if judge_adapter is not None:
+            await judge_adapter.aclose()
 
 
 def _summary(record, path: Path | None) -> str:
     m = record.metrics_summary()
     usage = record.total_usage
     where = str(path) if path is not None else "(not written)"
+    util = ""
+    if m["controls"]["total"] > 0:
+        u = m["utility_under_attack"]
+        util = f" utility={u:.2%}" if u is not None else " utility=n/a"
     return (
         f"run {record.run_id}: target={record.target_name} "
         f"attempts={record.total_attempts} succeeded={m['succeeded']} "
-        f"defended={m['defended']} error={m['errored']} asr={m['overall_asr']:.2%} "
+        f"defended={m['defended']} error={m['errored']} asr={m['overall_asr']:.2%}{util} "
         f"tokens={usage.total_tokens} est_cost=${record.total_cost_usd:.4f} -> {where}"
     )
+
+
+def _build_judge_scorer(cfg, *, dry_run: bool):
+    """Build a judge-enabled Scorer + its (separate) adapter; exit 2 on bad config (Fix #2)."""
+    target = cfg.judge.target
+    if not target:
+        typer.echo("judge enabled but no judge target configured (set judge.target)", err=True)
+        raise typer.Exit(code=2)
+    try:
+        rubric = get_rubric(cfg.judge.rubric_version)
+        judge_adapter = build_target(target, cfg, dry_run=dry_run)
+    except ConfigError as exc:
+        typer.echo(f"judge config error: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    judge = AdapterJudge(
+        judge_adapter,
+        rubric,
+        temperature=cfg.judge.temperature,
+        max_tokens=cfg.judge.max_tokens,
+    )
+    return Scorer(judge=judge, judge_config=cfg.judge), judge_adapter
 
 
 @app.command()
@@ -123,6 +155,13 @@ def run(
         Path | None, typer.Option("--out", help="Also write the run record here.")
     ] = None,
     tui: Annotated[bool, typer.Option("--tui", help="Live TUI scoreboard (Textual).")] = False,
+    judge: Annotated[
+        bool | None,
+        typer.Option("--judge/--no-judge", help="Enable the T3 LLM-judge (default: config)."),
+    ] = None,
+    controls: Annotated[
+        bool, typer.Option("--controls/--no-controls", help="Also run benign controls.")
+    ] = False,
     config: ConfigOpt = None,
 ) -> None:
     """Run selected attack packs against a target, recording every attempt."""
@@ -141,6 +180,20 @@ def run(
     except PackError as exc:
         typer.echo(f"pack error: {exc}", err=True)
         raise typer.Exit(code=2) from exc
+
+    judge_enabled = cfg.judge.enabled if judge is None else judge
+    scorer = None
+    judge_adapter = None
+    if judge_enabled:
+        scorer, judge_adapter = _build_judge_scorer(cfg, dry_run=dry_run)
+
+    control_items: tuple = ()
+    if controls:
+        try:
+            control_items = tuple(load_controls())
+        except PackError as exc:
+            typer.echo(f"control error: {exc}", err=True)
+            raise typer.Exit(code=2) from exc
 
     # --- dry run: plan only, no network, no record ---
     if dry_run:
@@ -185,11 +238,13 @@ def run(
         def engine(on_attempt):
             async def _run():
                 try:
-                    return await Runner(adapter, cfg.run, on_attempt=on_attempt).run(
-                        selected, record
+                    return await Runner(adapter, cfg.run, scorer=scorer, on_attempt=on_attempt).run(
+                        selected, record, controls=control_items
                     )
                 finally:
                     await adapter.aclose()
+                    if judge_adapter is not None:
+                        await judge_adapter.aclose()
 
             return _run()
 
@@ -205,7 +260,17 @@ def run(
         typer.echo(_summary(record, out or record_path))
         return
 
-    asyncio.run(_execute(adapter, cfg.run, selected, record))
+    asyncio.run(
+        _execute(
+            adapter,
+            cfg.run,
+            selected,
+            record,
+            controls=control_items,
+            scorer=scorer,
+            judge_adapter=judge_adapter,
+        )
+    )
 
     record_path = Runner(adapter, cfg.run).run_path(record)
     if resume is not None:
@@ -304,6 +369,15 @@ def report(
     typer.echo(f"  status: {record.status.value}")
     typer.echo(f"  attempts: {record.total_attempts}")
     typer.echo(f"  ASR (overall): {metrics['overall_asr']:.2%}")
+    util = metrics["utility_under_attack"]
+    util_str = f"{util:.2%}" if util is not None else "n/a"
+    typer.echo(f"  utility-under-attack: {util_str}")
+    ctrl = metrics["controls"]
+    if ctrl["total"] > 0:
+        typer.echo(
+            f"  controls: answered {ctrl['answered']} / {ctrl['total']} "
+            f"(refused {ctrl['refused']}, errored {ctrl['errored']})"
+        )
     typer.echo(
         f"  scored: {metrics['scored']} succeeded: {metrics['succeeded']} "
         f"defended: {metrics['defended']} errored: {metrics['errored']} "

@@ -6,7 +6,14 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from .errors import ConfigError
 
@@ -53,6 +60,33 @@ class CustomProviderConfig(BaseModel):
     default_headers: dict[str, str] = {}
 
 
+class JudgeConfig(BaseModel):
+    """T3 LLM-judge config (Phase 6, additive, default OFF).
+
+    Only simple field constraints are validated here. The cross-checks that an enabled
+    judge has a resolvable ``target`` and a known ``rubric_version`` are deferred to CLI
+    startup (Fix #2) so ``config.py`` never imports ``judge.py`` (no import cycle).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False  # OFF by default — nothing changes unless set
+    target: str | None = None  # name of a configured target used as the judge endpoint
+    rubric_version: str = "v1"  # pinned; selects RUBRIC_V1 (unknown -> ConfigError at CLI)
+    ensemble_size: int = Field(default=3, ge=1)
+    vote_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
+    contested_band: float = Field(default=0.15, ge=0.0, le=1.0)
+    temperature: float = 0.7  # judge sampling temp for ensemble diversity (real backend)
+    max_tokens: int = Field(default=256, ge=1)
+
+    @field_validator("target")
+    @classmethod
+    def _target_non_empty(cls, v: str | None) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError("judge target must be a non-empty string when set")
+        return v
+
+
 class GauntletConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -61,6 +95,7 @@ class GauntletConfig(BaseModel):
     run: RunOptions = RunOptions()
     providers: dict[str, CustomProviderConfig] = {}
     targets: dict[str, TargetConfig] = {}
+    judge: JudgeConfig = JudgeConfig()
 
     @model_validator(mode="after")
     def _check_provider_collisions_and_targets(self) -> GauntletConfig:

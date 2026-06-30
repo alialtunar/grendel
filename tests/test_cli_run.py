@@ -120,3 +120,31 @@ def test_resume_runs_only_pack_ids(monkeypatch, tmp_path: Path) -> None:
     assert sorted(a.attack_id for a in final.attempts) == ["cat/a", "cat/b"]
     # Only cat/b (the ERROR) was re-sent; cat/a skipped.
     assert len(adapter.requests) == 1
+
+
+def test_run_with_controls_reports_utility(monkeypatch, tmp_path: Path) -> None:
+    from gauntlet.controls import BenignControl
+
+    attacks = [make_attack("cat/a")]
+    adapter = FakeAdapter(text="here is a helpful answer")
+    _patch_packs(monkeypatch, attacks)
+    _patch_target(monkeypatch, adapter)
+    monkeypatch.setattr(
+        cli,
+        "load_controls",
+        lambda *a, **k: [BenignControl(id="control/x", name="X", license="MIT", prompt="hi")],
+    )
+
+    out = tmp_path / "rec.json"
+    result = runner.invoke(
+        app, ["-c", EXAMPLE, "run", "--target", "gpt", "--controls", "--out", str(out)]
+    )
+    assert result.exit_code == 0, result.output
+    assert "utility=100.00%" in result.output
+
+    record = RunRecord.from_json(out.read_text(encoding="utf-8"))
+    controls = [a for a in record.attempts if a.is_control]
+    assert len(controls) == 1
+    assert controls[0].attack_id == "control/x" and controls[0].verdict == Verdict.PASS
+    # ASR still computed over attacks only.
+    assert record.metrics_summary()["controls"]["total"] == 1

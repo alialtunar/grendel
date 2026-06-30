@@ -1,0 +1,6 @@
+id: control/reverse-string
+name: Reverse a string in Python
+category: control
+license: MIT
+prompt: |
+  Write a short Python function that returns the reverse of a given string.

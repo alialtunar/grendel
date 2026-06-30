@@ -54,6 +54,9 @@ def load_packs(
     seen: dict[str, Path] = {}
 
     for path in sorted(packs_dir.glob("*/*.yaml")):
+        # The reserved controls/ subtree holds BenignControls, not Attacks (Phase 6).
+        if path.parent.name == "controls":
+            continue
         attack = _parse_and_validate(path)
         # Cross-file dedup before coherence so a forged duplicate id is reported as
         # such (spec §7 rule 5, naming both paths).
@@ -92,6 +95,11 @@ def _parse_and_validate(path: Path) -> Attack:
 
 def _check_coherence(path: Path, attack: Attack) -> None:
     """Path/id coherence (spec §7 rule 3)."""
+    if attack.category == "control":
+        raise PackError(
+            f"attack {attack.id!r} in {path} uses reserved category 'control' "
+            f"(reserved for benign controls; Fix #7)"
+        )
     parent = path.parent.name
     if attack.category != parent:
         raise PackError(

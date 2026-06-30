@@ -1,0 +1,6 @@
+id: control/water-cycle
+name: Summarize the water cycle
+category: control
+license: Apache-2.0
+prompt: |
+  Summarize the water cycle in two sentences for a school science class.

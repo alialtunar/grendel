@@ -1,0 +1,6 @@
+id: control/photosynthesis
+name: Explain photosynthesis
+category: control
+license: Apache-2.0
+prompt: |
+  In plain language, explain what photosynthesis is and why it matters for plants.

@@ -1,0 +1,6 @@
+id: control/autumn-haiku
+name: Write an autumn haiku
+category: control
+license: Apache-2.0
+prompt: |
+  Write a short, original haiku about autumn leaves.

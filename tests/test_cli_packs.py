@@ -56,3 +56,10 @@ def test_bare_list_includes_packs() -> None:
     assert result.exit_code == 0
     assert "Packs:" in result.output
     assert "jailbreak/persona-dan-01" in result.output
+
+
+def test_list_packs_shows_source_tag() -> None:
+    # Phase 9 (§10 item 4): each bundled row carries a [bundled] source tag.
+    result = runner.invoke(app, ["-c", EXAMPLE, "list", "--packs"])
+    assert result.exit_code == 0
+    assert "[bundled]" in result.output

@@ -29,3 +29,8 @@ class ProviderError(GauntletError):
 class PackError(GauntletError):
     """Raised for any pack/loader failure (malformed YAML, validation, path/id
     mismatch, license gating, duplicate id)."""
+
+
+class FeedError(GauntletError):
+    """Raised for feed-level failures: manifest parse, unsupported manifest_version,
+    unreachable feed, or no feed_cache_dir configured (Phase 9)."""

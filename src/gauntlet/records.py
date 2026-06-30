@@ -72,6 +72,8 @@ class AttemptRecord(BaseModel):
     attempt_id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     attack_id: str | None = None
     category: str | None = None
+    owasp: str | None = None  # ADDITIVE (Phase 9) — populated by the runner from Attack.owasp
+    atlas: str | None = None  # ADDITIVE (Phase 9) — populated by the runner from Attack.atlas
     prompt: str
     response_text: str | None = None
     raw_response: dict | None = None
@@ -176,6 +178,37 @@ class RunRecord(BaseModel):
         """
         return {cat: _asr(rows) for cat, rows in self.by_category().items() if cat != "control"}
 
+    def _group_by_code(self, field: str) -> dict[str, list[AttemptRecord]]:
+        """Group non-control attempts by an attr (owasp/atlas); None -> 'unmapped'."""
+        grouped: dict[str, list[AttemptRecord]] = {}
+        for attempt in self.attempts:
+            if attempt.is_control:
+                continue
+            key = getattr(attempt, field) or "unmapped"
+            grouped.setdefault(key, []).append(attempt)
+        return grouped
+
+    def asr_by_owasp(self) -> dict[str, float]:
+        """Per-OWASP attack success rate (scored, non-control; None -> 'unmapped')."""
+        return {code: _asr(rows) for code, rows in self._group_by_code("owasp").items()}
+
+    def asr_by_atlas(self) -> dict[str, float]:
+        """Per-ATLAS attack success rate (scored, non-control; None -> 'unmapped')."""
+        return {code: _asr(rows) for code, rows in self._group_by_code("atlas").items()}
+
+    def _breakdown(self, field: str) -> dict[str, dict]:
+        """{code: {asr, scored, succeeded}} over non-control attempts, mirroring by_category."""
+        out: dict[str, dict] = {}
+        for code, rows in self._group_by_code(field).items():
+            scored = [a for a in rows if a.verdict in (Verdict.PASS, Verdict.FAIL)]
+            succeeded = [a for a in scored if a.verdict == Verdict.FAIL]
+            out[code] = {
+                "asr": _asr(rows),
+                "scored": len(scored),
+                "succeeded": len(succeeded),
+            }
+        return out
+
     def metrics_summary(self) -> dict:
         """Aggregate metrics the CLI report prints (all derived, not serialized).
 
@@ -207,6 +240,8 @@ class RunRecord(BaseModel):
             "skipped": sum(1 for a in attacks if a.verdict == Verdict.SKIPPED),
             "total": len(attacks),
             "by_category": by_category,
+            "by_owasp": self._breakdown("owasp"),
+            "by_atlas": self._breakdown("atlas"),
             "utility_under_attack": _utility_under_attack(self.attempts),
             "controls": {
                 "total": len(controls),

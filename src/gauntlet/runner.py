@@ -190,6 +190,8 @@ class Runner:
         attack_id: str,
         category: str | None,
         is_control: bool,
+        owasp: str | None = None,
+        atlas: str | None = None,
     ) -> tuple[AttemptRecord | None, dict | None]:
         """Shared gate/semaphore/send/retry/cost wrapper over a prebuilt request (Fix #1).
 
@@ -208,6 +210,8 @@ class Runner:
                 attempt = AttemptRecord(
                     attack_id=attack_id,
                     category=category,
+                    owasp=owasp,
+                    atlas=atlas,
                     prompt=request.prompt,
                     verdict=Verdict.ERROR,
                     error=str(exc),
@@ -256,6 +260,8 @@ class Runner:
             attack_id=attack.id,
             category=attack.category,
             is_control=False,
+            owasp=attack.owasp,
+            atlas=attack.atlas,
         )
         if err is not None:
             await self._record_attempt(record, err)
@@ -269,6 +275,8 @@ class Runner:
         attempt = AttemptRecord(
             attack_id=attack.id,
             category=attack.category,
+            owasp=attack.owasp,
+            atlas=attack.atlas,
             prompt=request.prompt,
             response_text=response.text,
             raw_response=response.raw,

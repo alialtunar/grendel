@@ -98,6 +98,35 @@ class JudgeConfig(BaseModel):
         return v
 
 
+class FeedSource(BaseModel):
+    """A remote feed manifest to pull packs from (Phase 9)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str  # logical feed name (shown in `update` output)
+    url: str  # URL of the feed manifest (JSON or YAML)
+
+    @field_validator("name", "url")
+    @classmethod
+    def _non_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("must be a non-empty string")
+        return v
+
+
+class CatalogConfig(BaseModel):
+    """Multi-source catalog config (Phase 9, additive, default empty == bundled-only)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    pack_dirs: list[Path] = []  # extra user pack directories (USER source)
+    feed_cache_dir: Path | None = None  # where `gauntlet update` writes pulled packs (FEED)
+    feeds: list[FeedSource] = []  # remote feed manifests to pull
+    staged_dir: Path | None = None  # optional: staged-for-approval packs (§9)
+    allow_override: bool = False  # cross-source dup id -> precedence vs error (§5.2)
+    allow_unlisted_licenses: bool = False  # gate override applied to ALL sources + the feed
+
+
 class GauntletConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -107,6 +136,7 @@ class GauntletConfig(BaseModel):
     providers: dict[str, CustomProviderConfig] = {}
     targets: dict[str, TargetConfig] = {}
     judge: JudgeConfig = JudgeConfig()
+    catalog: CatalogConfig = CatalogConfig()  # ADDITIVE — default empty == bundled-only
 
     @model_validator(mode="after")
     def _check_provider_collisions_and_targets(self) -> GauntletConfig:
@@ -182,8 +212,19 @@ def load_config(path: Path | None) -> GauntletConfig:
         raise ConfigError(f"config root must be a mapping in {path}, got {type(raw).__name__}")
 
     try:
-        return GauntletConfig.model_validate(raw)
+        cfg = GauntletConfig.model_validate(raw)
     except ConfigError:
         raise
     except ValidationError as exc:
         raise ConfigError(f"invalid config in {path}: {exc}") from exc
+
+    # Resolve relative catalog paths against the config-file directory so they are
+    # stable regardless of the process cwd (Fix #11). Absolute paths are left as-is.
+    base_dir = path.resolve().parent
+    cat = cfg.catalog
+    cat.pack_dirs = [p if p.is_absolute() else base_dir / p for p in cat.pack_dirs]
+    if cat.feed_cache_dir is not None and not cat.feed_cache_dir.is_absolute():
+        cat.feed_cache_dir = base_dir / cat.feed_cache_dir
+    if cat.staged_dir is not None and not cat.staged_dir.is_absolute():
+        cat.staged_dir = base_dir / cat.staged_dir
+    return cfg

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from enum import Enum
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -10,10 +12,32 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from .attacks import ALLOWED_LICENSES, Attack, Severity, Surface
 from .errors import PackError
 
+if TYPE_CHECKING:
+    from .config import GauntletConfig
+
 
 def default_packs_dir() -> Path:
     """The bundled packs directory shipped inside the package."""
     return Path(__file__).parent / "packs"
+
+
+class Source(str, Enum):
+    """Where a catalog entry came from (Phase 9)."""
+
+    BUNDLED = "bundled"  # shipped in src/gauntlet/packs (Vendored tier)
+    USER = "user"  # a config-listed user pack directory (Plugin/local tier)
+    FEED = "feed"  # pulled by `gauntlet update` into the feed cache (Feed tier)
+    STAGED = "staged"  # awaiting human approval — listed, NOT armed (optional §9)
+
+
+# Cross-source precedence rank (higher wins under allow_override). user > feed > bundled;
+# staged never overrides an armed source (§5.2 + Fix #7 same-rank tie).
+_SOURCE_RANK: dict[Source, int] = {
+    Source.STAGED: 0,
+    Source.BUNDLED: 1,
+    Source.FEED: 2,
+    Source.USER: 3,
+}
 
 
 class PackInfo(BaseModel):
@@ -32,6 +56,18 @@ class PackInfo(BaseModel):
     license_ok: bool
     success_type: str
     path: Path
+    source: Source = Source.BUNDLED
+
+
+class CatalogEntry(BaseModel):
+    """One attack plus the source it came from (the unit `load_catalog` returns)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    attack: Attack
+    source: Source
+    path: Path
+    armed: bool = True  # False only for STAGED (excluded from run selection)
 
 
 def load_packs(
@@ -161,33 +197,109 @@ def _check_license(path: Path, attack: Attack, *, allow_unlisted_licenses: bool)
         )
 
 
+def _pack_path(packs_dir: Path, attack: Attack) -> Path:
+    """Recompute the on-disk path of an attack within a (coherent) source dir."""
+    return packs_dir / attack.category / f"{attack.id.split('/', 1)[1]}.yaml"
+
+
+def load_catalog(
+    config: GauntletConfig,
+    *,
+    allow_unlisted_licenses: bool = False,
+) -> list[CatalogEntry]:
+    """Merge bundled + user dirs + feed cache + staged into one source-tagged catalog.
+
+    Every source is loaded via the existing ``load_packs`` primitive, so each gets the
+    same license-gate / coherence / assert-parse validation. An absent configured dir
+    contributes zero (no error); a malformed one raises PackError. Cross-source duplicate
+    ids are a PackError by default, or a deterministic precedence win (user > feed >
+    bundled) when ``config.catalog.allow_override`` is set — equal source ranks never
+    resolve (Fix #7). Returns entries sorted by ``attack.id``.
+    """
+    allow = allow_unlisted_licenses or config.catalog.allow_unlisted_licenses
+    cat = config.catalog
+
+    # (source, dir, armed), loaded in fixed precedence order (spec §5.1).
+    plan: list[tuple[Source, Path, bool]] = [(Source.BUNDLED, default_packs_dir(), True)]
+    plan += [(Source.USER, Path(d), True) for d in cat.pack_dirs]
+    if cat.feed_cache_dir is not None:
+        plan.append((Source.FEED, Path(cat.feed_cache_dir), True))
+    if cat.staged_dir is not None:
+        plan.append((Source.STAGED, Path(cat.staged_dir), False))
+
+    chosen: dict[str, CatalogEntry] = {}
+    for source, packs_dir, armed in plan:
+        # Bundled always exists; an absent user/feed/staged dir simply contributes zero.
+        if source is not Source.BUNDLED and not packs_dir.is_dir():
+            continue
+        for attack in load_packs(packs_dir, allow_unlisted_licenses=allow):
+            entry = CatalogEntry(
+                attack=attack,
+                source=source,
+                path=_pack_path(packs_dir, attack),
+                armed=armed,
+            )
+            existing = chosen.get(attack.id)
+            if existing is None:
+                chosen[attack.id] = entry
+                continue
+            _resolve_duplicate(config, existing, entry)
+            if _SOURCE_RANK[entry.source] > _SOURCE_RANK[existing.source]:
+                chosen[attack.id] = entry
+
+    return sorted(chosen.values(), key=lambda e: e.attack.id)
+
+
+def _resolve_duplicate(config: GauntletConfig, existing: CatalogEntry, entry: CatalogEntry) -> None:
+    """Apply the §5.2 cross-source dedup rule; raise PackError when there is no winner."""
+    if not config.catalog.allow_override:
+        raise PackError(
+            f"duplicate attack id {entry.attack.id!r} across sources: "
+            f"{existing.path} [{existing.source.value}] and {entry.path} [{entry.source.value}]"
+        )
+    if _SOURCE_RANK[entry.source] == _SOURCE_RANK[existing.source]:
+        # Fix #7: override only resolves DIFFERENT ranks; equal ranks have no winner.
+        raise PackError(
+            f"duplicate attack id {entry.attack.id!r} in same-rank sources "
+            f"{existing.path} [{existing.source.value}] and {entry.path} "
+            f"[{entry.source.value}]; allow_override cannot pick a winner"
+        )
+
+
+def _project(attack: Attack, path: Path, source: Source) -> PackInfo:
+    return PackInfo(
+        id=attack.id,
+        name=attack.name,
+        category=attack.category,
+        owasp=attack.owasp,
+        atlas=attack.atlas,
+        surface=attack.surface,
+        severity=attack.severity,
+        license=attack.license,
+        license_ok=attack.license in ALLOWED_LICENSES,
+        success_type=attack.success_when.type,
+        path=path,
+        source=source,
+    )
+
+
 def list_packs(
     packs_dir: Path | None = None,
     *,
+    config: GauntletConfig | None = None,
     allow_unlisted_licenses: bool = False,
 ) -> list[PackInfo]:
-    """Load packs and project each Attack to a lightweight PackInfo row."""
+    """Project attacks to lightweight PackInfo rows.
+
+    With ``config`` given, project the merged multi-source catalog (each row tagged with
+    its source); otherwise load a single dir (default bundled, ``source=BUNDLED``).
+    """
+    if config is not None:
+        entries = load_catalog(config, allow_unlisted_licenses=allow_unlisted_licenses)
+        return [_project(e.attack, e.path, e.source) for e in entries]
+
     if packs_dir is None:
         packs_dir = default_packs_dir()
     packs_dir = Path(packs_dir)
-
     attacks = load_packs(packs_dir, allow_unlisted_licenses=allow_unlisted_licenses)
-    infos: list[PackInfo] = []
-    for attack in attacks:
-        path = packs_dir / attack.category / f"{attack.id.split('/', 1)[1]}.yaml"
-        infos.append(
-            PackInfo(
-                id=attack.id,
-                name=attack.name,
-                category=attack.category,
-                owasp=attack.owasp,
-                atlas=attack.atlas,
-                surface=attack.surface,
-                severity=attack.severity,
-                license=attack.license,
-                license_ok=attack.license in ALLOWED_LICENSES,
-                success_type=attack.success_when.type,
-                path=path,
-            )
-        )
-    return infos
+    return [_project(a, _pack_path(packs_dir, a), Source.BUNDLED) for a in attacks]

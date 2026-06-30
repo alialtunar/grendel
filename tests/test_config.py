@@ -60,3 +60,45 @@ def test_custom_provider_preset_collision_raises(write_config) -> None:
 def test_missing_file_raises() -> None:
     with pytest.raises(ConfigError, match="not found"):
         load_config(Path("does-not-exist.yaml"))
+
+
+def test_catalog_defaults_empty() -> None:
+    cfg = GauntletConfig()
+    assert cfg.catalog.pack_dirs == []
+    assert cfg.catalog.feed_cache_dir is None
+    assert cfg.catalog.feeds == []
+    assert cfg.catalog.allow_override is False
+    assert cfg.catalog.allow_unlisted_licenses is False
+
+
+def test_catalog_roundtrip(write_config) -> None:
+    text = (
+        "catalog:\n"
+        "  pack_dirs:\n"
+        "    - sub/packs\n"
+        "  allow_override: true\n"
+        "  feeds:\n"
+        "    - name: community\n"
+        "      url: https://feed.test/manifest.yaml\n"
+    )
+    path = write_config(text)
+    cfg = load_config(path)
+    assert cfg.catalog.allow_override is True
+    assert cfg.catalog.feeds[0].name == "community"
+    assert cfg.catalog.feeds[0].url == "https://feed.test/manifest.yaml"
+    assert cfg.catalog.pack_dirs == [path.resolve().parent / "sub" / "packs"]
+
+
+def test_catalog_relative_paths_resolve_against_config_dir(write_config) -> None:
+    text = "catalog:\n  pack_dirs:\n    - mypacks\n  feed_cache_dir: cache\n"
+    path = write_config(text)
+    cfg = load_config(path)
+    base = path.resolve().parent
+    assert cfg.catalog.pack_dirs == [base / "mypacks"]
+    assert cfg.catalog.feed_cache_dir == base / "cache"
+
+
+def test_feed_source_empty_name_rejected(write_config) -> None:
+    text = "catalog:\n  feeds:\n    - name: ''\n      url: https://x.test/m\n"
+    with pytest.raises(ConfigError):
+        load_config(write_config(text))

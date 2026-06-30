@@ -11,10 +11,11 @@ import typer
 
 from .config import load_config
 from .controls import load_controls
-from .errors import ConfigError, PackError
+from .errors import ConfigError, FeedError, PackError
+from .feed import update_feeds
 from .judge import AdapterJudge, get_rubric
 from .logging_setup import configure_logging, get_logger
-from .packloader import default_packs_dir, list_packs, load_packs
+from .packloader import Source, list_packs, load_catalog
 from .records import RunRecord, make_run_record
 from .runner import Runner
 from .scoring import Scorer
@@ -70,6 +71,15 @@ def main(
 
     ctx.ensure_object(dict)
     ctx.obj["config"] = cfg
+
+
+def _load_attacks(cfg):
+    """The single armed-attack load point (Fix #1): merged multi-source catalog.
+
+    With an empty ``catalog`` this is byte-identical to the bundled set. Both ``run``
+    paths call this; tests monkeypatch it.
+    """
+    return [e.attack for e in load_catalog(cfg) if e.armed]
 
 
 def _select_attacks(attacks, pack):
@@ -173,7 +183,7 @@ def run(
     try:
         info = resolve_target_info(target, cfg)
         adapter = build_target(target, cfg, dry_run=dry_run)
-        attacks = load_packs(default_packs_dir())
+        attacks = _load_attacks(cfg)
     except ConfigError as exc:
         typer.echo(f"config error: {exc}", err=True)
         raise typer.Exit(code=2) from exc
@@ -288,6 +298,7 @@ def list_(
     targets: bool = typer.Option(False, "--targets", help="List configured targets."),
     providers: bool = typer.Option(False, "--providers", help="List known providers."),
     packs: bool = typer.Option(False, "--packs", help="List attack packs (Phase 2+)."),
+    staged: bool = typer.Option(False, "--staged", help="Include staged (not-armed) packs."),
     config: ConfigOpt = None,
 ) -> None:
     """List configured targets, known providers, or attack packs."""
@@ -311,10 +322,14 @@ def list_(
 
     if packs or show_all:
         try:
-            infos = list_packs(default_packs_dir())
-        except PackError as exc:
+            infos = list_packs(config=cfg)
+        except (PackError, ConfigError) as exc:
             typer.echo(f"pack error: {exc}", err=True)
             raise typer.Exit(code=2) from exc
+
+        # Staged packs (armed=False) are only shown with --staged (spec §9).
+        if not staged:
+            infos = [i for i in infos if i.source is not Source.STAGED]
 
         typer.echo("Packs:")
         by_category: dict[str, list] = {}
@@ -324,10 +339,11 @@ def list_(
             typer.echo(f"  {category} ({len(rows)}):")
             for info in rows:
                 suffix = "" if info.license_ok else " (unlisted license)"
+                staged_tag = " (staged)" if info.source is Source.STAGED else ""
                 typer.echo(
                     f"    {info.id:<42} {info.owasp}  {info.atlas:<12} "
                     f"{info.severity.value:<9} {info.success_type:<6} "
-                    f"[{info.license}]{suffix}"
+                    f"[{info.license}]{suffix} [{info.source.value}]{staged_tag}"
                 )
 
 
@@ -388,3 +404,61 @@ def report(
         typer.echo(
             f"    {cat}: ASR {stats['asr']:.2%} (succeeded {stats['succeeded']}/{stats['scored']})"
         )
+    typer.echo("  by OWASP:")
+    for code, stats in sorted(metrics["by_owasp"].items()):
+        typer.echo(
+            f"    {code}: ASR {stats['asr']:.2%} (succeeded {stats['succeeded']}/{stats['scored']})"
+        )
+    typer.echo("  by ATLAS:")
+    for code, stats in sorted(metrics["by_atlas"].items()):
+        typer.echo(
+            f"    {code}: ASR {stats['asr']:.2%} (succeeded {stats['succeeded']}/{stats['scored']})"
+        )
+
+
+@app.command()
+def update(
+    ctx: typer.Context,
+    feed: Annotated[str | None, typer.Option("--feed", help="Update only the named feed.")] = None,
+    allow_unlisted_licenses: Annotated[
+        bool,
+        typer.Option(
+            "--allow-unlisted-licenses", help="Pull packs with licenses outside the allowlist."
+        ),
+    ] = False,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Fetch + verify only; write nothing.")
+    ] = False,
+    config: ConfigOpt = None,
+) -> None:
+    """Pull versioned packs from configured feeds into the feed cache."""
+    cfg = _resolve_config(ctx, config)
+
+    # Fix #9: --feed NAME that matches no configured feed is a usage error.
+    if feed is not None and feed not in {f.name for f in cfg.catalog.feeds}:
+        typer.echo(f"no feed named {feed!r} in catalog.feeds", err=True)
+        raise typer.Exit(code=2)
+
+    try:
+        result = asyncio.run(
+            update_feeds(
+                cfg,
+                feed_name=feed,
+                dry_run=dry_run,
+                allow_unlisted_licenses=allow_unlisted_licenses,
+            )
+        )
+    except FeedError as exc:
+        typer.echo(f"feed error: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+
+    prefix = "[dry-run] " if dry_run else ""
+    typer.echo(
+        f"{prefix}feeds: pulled {result.pulled} updated {result.updated} "
+        f"unchanged {result.unchanged} skipped-license {result.skipped_license} "
+        f"checksum-failed {result.checksum_failed} errors {result.errors}"
+    )
+    for d in result.details:
+        if d.action in ("skipped_license", "checksum_failed", "error"):
+            who = f"{d.feed}/{d.id}" if d.id else d.feed
+            typer.echo(f"  {d.action}: {who} — {d.reason}")

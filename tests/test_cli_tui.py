@@ -19,7 +19,8 @@ EXAMPLE = str(Path(__file__).resolve().parents[1] / "examples" / "gauntlet.examp
 
 
 def _patch_packs(monkeypatch, attacks):
-    monkeypatch.setattr(cli, "load_packs", lambda *a, **k: list(attacks))
+    # Phase 9: run loads via the single _load_attacks(cfg) point (Fix #1).
+    monkeypatch.setattr(cli, "_load_attacks", lambda *a, **k: list(attacks))
 
 
 def _patch_target(monkeypatch, adapter):

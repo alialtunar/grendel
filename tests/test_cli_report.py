@@ -23,9 +23,15 @@ def _record_file(tmp_path: Path) -> Path:
         model="gpt-4o-mini",
         status=RunStatus.COMPLETED,
         attempts=[
-            AttemptRecord(prompt="a", category="inj", verdict=Verdict.FAIL),
-            AttemptRecord(prompt="b", category="inj", verdict=Verdict.PASS),
-            AttemptRecord(prompt="c", category="jail", verdict=Verdict.FAIL),
+            AttemptRecord(
+                prompt="a", category="inj", owasp="LLM01", atlas="AML.T0051", verdict=Verdict.FAIL
+            ),
+            AttemptRecord(
+                prompt="b", category="inj", owasp="LLM01", atlas="AML.T0051", verdict=Verdict.PASS
+            ),
+            AttemptRecord(
+                prompt="c", category="jail", owasp="LLM06", atlas="AML.T0054", verdict=Verdict.FAIL
+            ),
             AttemptRecord(prompt="d", category="jail", verdict=Verdict.SKIPPED),
         ],
     )
@@ -43,6 +49,11 @@ def test_report_text_prints_asr_and_categories(tmp_path: Path) -> None:
     assert "by category:" in result.output
     assert "inj:" in result.output
     assert "jail:" in result.output
+    # Phase 9: OWASP/ATLAS breakdowns render.
+    assert "by OWASP:" in result.output
+    assert "LLM01:" in result.output
+    assert "by ATLAS:" in result.output
+    assert "AML.T0051:" in result.output
 
 
 def _record_file_with_controls(tmp_path: Path) -> Path:

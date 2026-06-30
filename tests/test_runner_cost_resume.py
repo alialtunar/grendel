@@ -105,10 +105,10 @@ async def test_resume_skips_executed_reruns_error_and_missing(tmp_path: Path) ->
     by_id = {a.attack_id: a for a in result.attempts}
     # cat/a was skipped (not re-sent) -> keeps its ORIGINAL response.
     assert by_id["cat/a"].response_text == "ORIGINAL"
-    # cat/b (ERROR) and cat/c (missing) were executed now.
-    assert by_id["cat/b"].verdict == Verdict.SKIPPED
+    # cat/b (ERROR) and cat/c (missing) were executed now and scored (benign "NEW" -> PASS).
+    assert by_id["cat/b"].verdict == Verdict.PASS
     assert by_id["cat/b"].response_text == "NEW"
-    assert by_id["cat/c"].verdict == Verdict.SKIPPED
+    assert by_id["cat/c"].verdict == Verdict.PASS
     # Only the two pending attacks were sent.
     assert len(runner.adapter.requests) == 2
 

@@ -4,8 +4,8 @@ The runner builds one ``AdapterRequest`` per attack, sends it under a bounded
 semaphore (with an out-of-semaphore rate-limit gate and a per-request timeout),
 retries transient failures with seeded full-jitter backoff, and folds every result
 into an ``AttemptRecord`` on the ``RunRecord``. It persists the record atomically and
-incrementally so a crashed run is resumable. It imports no scorer — verdicts are only
-``SKIPPED`` (executed) or ``ERROR`` (Phase 4 adds scoring).
+incrementally so a crashed run is resumable. Successful sends are scored by the injected
+``Scorer`` (real PASS/FAIL/SKIPPED verdict + tier); send failures record ``ERROR``.
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ from .errors import AdapterError
 from .logging_setup import get_logger
 from .pricing import estimate_cost
 from .records import AttemptRecord, RunRecord, RunStatus, TokenUsage, Verdict
+from .scoring import Scorer
 from .targets.base import AdapterRequest, TargetAdapter
 
 if TYPE_CHECKING:
@@ -80,9 +81,11 @@ class Runner:
         rng: random.Random | None = None,
         now: Callable[[], datetime] = _utc_now,
         monotonic: Callable[[], float] = time.monotonic,
+        scorer: Scorer | None = None,
     ) -> None:
         self.adapter = adapter
         self.options = options
+        self._scorer = scorer if scorer is not None else Scorer()
         self._sleep = sleep
         self._rng = rng if rng is not None else random.Random(options.retry_seed)
         self._now = now
@@ -197,13 +200,16 @@ class Runner:
             latency = response.latency_ms
             if latency is None:
                 latency = (self._monotonic() - start) * 1000.0
+            result = self._scorer.score(attack, response_text=response.text, response=response)
             attempt = AttemptRecord(
                 attack_id=attack.id,
                 category=attack.category,
                 prompt=request.prompt,
                 response_text=response.text,
                 raw_response=response.raw,
-                verdict=Verdict.SKIPPED,
+                verdict=result.verdict,
+                score_tier=result.score_tier,
+                score_detail=result.detail,
                 usage=usage,
                 cost_usd=cost_usd,
                 latency_ms=latency,

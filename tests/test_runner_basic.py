@@ -26,16 +26,20 @@ def _options(tmp_path: Path, **kw) -> RunOptions:
 
 
 async def test_single_attack_happy_path(tmp_path: Path) -> None:
-    adapter = FakeAdapter(text="resp", prompt_tokens=3, completion_tokens=4)
+    # Canary "x" (make_attack's default success_when) present in the response -> the
+    # attack succeeded -> deterministic FAIL/T1 (Phase 4 scoring contract).
+    adapter = FakeAdapter(text="resp x", prompt_tokens=3, completion_tokens=4)
     runner = Runner(adapter, _options(tmp_path))
     record = await runner.run([make_attack("cat/a", payload="hello")], _record(tmp_path))
 
     assert record.status == RunStatus.COMPLETED
     assert len(record.attempts) == 1
     att = record.attempts[0]
-    assert att.verdict == Verdict.SKIPPED
+    assert att.verdict == Verdict.FAIL
+    assert att.score_tier == "T1"
+    assert att.score_detail is not None and att.score_detail.matched == "x"
     assert att.attack_id == "cat/a"
-    assert att.response_text == "resp"
+    assert att.response_text == "resp x"
     assert att.raw_response == {"echo": "hello"}
     assert att.usage.prompt_tokens == 3
     assert att.usage.completion_tokens == 4
@@ -73,8 +77,11 @@ async def test_multi_attack_ordered_and_persisted(tmp_path: Path) -> None:
     assert reloaded.status == RunStatus.COMPLETED
 
 
-async def test_no_pass_or_fail_set(tmp_path: Path) -> None:
+async def test_benign_response_scored_pass(tmp_path: Path) -> None:
+    # Phase 4 contract update: a benign response ("ok", no canary, no refusal marker)
+    # escalates to T2, the lexical classifier scores it safe -> PASS (was SKIPPED in P3).
     adapter = FakeAdapter()
     runner = Runner(adapter, _options(tmp_path))
     record = await runner.run([make_attack("cat/a")], _record(tmp_path))
-    assert all(a.verdict == Verdict.SKIPPED for a in record.attempts)
+    assert all(a.verdict == Verdict.PASS for a in record.attempts)
+    assert all(a.verdict != Verdict.SKIPPED for a in record.attempts)

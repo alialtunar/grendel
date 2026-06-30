@@ -51,6 +51,20 @@ class TokenUsage(BaseModel):
         return NotImplemented
 
 
+class ScoreDetail(BaseModel):
+    """Why the scorer decided what it did (additive, serialized on the attempt).
+
+    Lives here (not in scoring.py) so AttemptRecord can reference it without a
+    records -> scoring import cycle.
+    """
+
+    tier: str  # "T1" | "T2"
+    reason: str  # human-readable, e.g. "canary 'GAUNTLET-PWNED' matched"
+    matched: str | None = None  # the marker/pattern that fired, if any
+    classifier_score: float | None = None  # T2 only: 0..1 attack-success score
+    classifier_label: str | None = None  # T2 only: e.g. "attack_succeeded" / "refusal"
+
+
 class AttemptRecord(BaseModel):
     attempt_id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     attack_id: str | None = None
@@ -61,12 +75,22 @@ class AttemptRecord(BaseModel):
     tool_calls: list[dict] = []
     verdict: Verdict = Verdict.SKIPPED
     score_tier: str | None = None
+    score_detail: ScoreDetail | None = None
     error: str | None = None
     usage: TokenUsage = TokenUsage()
     cost_usd: float | None = None
     latency_ms: float | None = None
     started_at: datetime | None = None
     finished_at: datetime | None = None
+
+
+def _asr(attempts: list[AttemptRecord]) -> float:
+    """Attack success rate over scored attempts: FAIL / (PASS+FAIL); 0.0 if none scored."""
+    scored = [a for a in attempts if a.verdict in (Verdict.PASS, Verdict.FAIL)]
+    if not scored:
+        return 0.0
+    succeeded = sum(1 for a in scored if a.verdict == Verdict.FAIL)
+    return succeeded / len(scored)
 
 
 class RunRecord(BaseModel):
@@ -100,14 +124,13 @@ class RunRecord(BaseModel):
 
     @property
     def asr(self) -> float:
-        """Attack success rate: fraction of attempts whose verdict is FAIL.
+        """Attack success rate: succeeded (FAIL) / scored (PASS+FAIL).
 
-        Phase 1 computes over all attempts; the non-control filter lands in Phase 6.
+        Scored excludes ERROR and SKIPPED (Phase 4 lock, ROADMAP §5). Zero scored
+        attempts -> 0.0. The non-control filter that refines the denominator lands in
+        Phase 6.
         """
-        if not self.attempts:
-            return 0.0
-        failures = len([a for a in self.attempts if a.verdict == Verdict.FAIL])
-        return failures / len(self.attempts)
+        return _asr(self.attempts)
 
     def by_category(self) -> dict[str, list[AttemptRecord]]:
         """Group attempts by category; a None category is keyed as 'uncategorized'."""
@@ -116,6 +139,34 @@ class RunRecord(BaseModel):
             key = attempt.category or "uncategorized"
             grouped.setdefault(key, []).append(attempt)
         return grouped
+
+    def asr_by_category(self) -> dict[str, float]:
+        """Per-category attack success rate (scored-only), reusing by_category()."""
+        return {cat: _asr(rows) for cat, rows in self.by_category().items()}
+
+    def metrics_summary(self) -> dict:
+        """Aggregate metrics the CLI report prints (all derived, not serialized)."""
+        scored = [a for a in self.attempts if a.verdict in (Verdict.PASS, Verdict.FAIL)]
+        succeeded = [a for a in scored if a.verdict == Verdict.FAIL]
+        by_category: dict[str, dict] = {}
+        for cat, rows in self.by_category().items():
+            cat_scored = [a for a in rows if a.verdict in (Verdict.PASS, Verdict.FAIL)]
+            cat_succeeded = [a for a in cat_scored if a.verdict == Verdict.FAIL]
+            by_category[cat] = {
+                "asr": _asr(rows),
+                "scored": len(cat_scored),
+                "succeeded": len(cat_succeeded),
+            }
+        return {
+            "overall_asr": _asr(self.attempts),
+            "scored": len(scored),
+            "succeeded": len(succeeded),
+            "defended": sum(1 for a in self.attempts if a.verdict == Verdict.PASS),
+            "errored": sum(1 for a in self.attempts if a.verdict == Verdict.ERROR),
+            "skipped": sum(1 for a in self.attempts if a.verdict == Verdict.SKIPPED),
+            "total": len(self.attempts),
+            "by_category": by_category,
+        }
 
     def to_json(self) -> str:
         return self.model_dump_json()

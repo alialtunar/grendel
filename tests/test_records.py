@@ -41,6 +41,8 @@ def test_asr_empty_is_zero() -> None:
 
 
 def test_asr_mixed() -> None:
+    # Phase 4 contract update: ASR denominator is scored attempts (PASS+FAIL), so the
+    # SKIPPED attempt is excluded -> 2 FAIL / 3 scored = 2/3 (was 2/4 = 0.5 in Phase 1).
     rec = _record_with(
         [
             AttemptRecord(prompt="a", verdict=Verdict.FAIL),
@@ -49,7 +51,7 @@ def test_asr_mixed() -> None:
             AttemptRecord(prompt="d", verdict=Verdict.SKIPPED),
         ]
     )
-    assert rec.asr == 0.5
+    assert rec.asr == 2 / 3
 
 
 def test_by_category_groups() -> None:

@@ -45,7 +45,8 @@ async def test_transient_retries_then_succeeds(tmp_path: Path) -> None:
     record = await runner.run([make_attack("cat/a")], _record())
 
     assert record.status == RunStatus.COMPLETED
-    assert record.attempts[0].verdict == Verdict.SKIPPED  # eventually succeeded
+    # eventually succeeded -> scored (benign "ok" -> PASS), no longer the P3 SKIPPED.
+    assert record.attempts[0].verdict == Verdict.PASS
 
     ref = random.Random(SEED)
     expected = [ref.uniform(0.0, 0.5), ref.uniform(0.0, 1.0)]  # caps: base*2^0, base*2^1
@@ -69,7 +70,7 @@ async def test_429_and_5xx_are_transient(tmp_path: Path) -> None:
         sleep = RecordingSleep()
         runner = Runner(adapter, _opts(tmp_path), sleep=sleep, rng=random.Random(SEED))
         record = await runner.run([make_attack("cat/a")], _record())
-        assert record.attempts[0].verdict == Verdict.SKIPPED
+        assert record.attempts[0].verdict == Verdict.PASS  # benign "ok" scored PASS
         assert len(sleep.calls) == 1  # retried once then succeeded
 
 
@@ -78,7 +79,7 @@ async def test_httpx_transport_error_is_transient(tmp_path: Path) -> None:
     sleep = RecordingSleep()
     runner = Runner(adapter, _opts(tmp_path), sleep=sleep, rng=random.Random(SEED))
     record = await runner.run([make_attack("cat/a")], _record())
-    assert record.attempts[0].verdict == Verdict.SKIPPED
+    assert record.attempts[0].verdict == Verdict.PASS  # benign "ok" scored PASS
     assert len(sleep.calls) == 1
 
 
@@ -125,5 +126,5 @@ async def test_failing_attack_does_not_crash_mixed_run(tmp_path: Path) -> None:
 
     assert record.status == RunStatus.COMPLETED
     verdicts = {a.attack_id: a.verdict for a in record.attempts}
-    assert verdicts["cat/a"] == Verdict.SKIPPED
+    assert verdicts["cat/a"] == Verdict.PASS  # benign "ok" scored PASS
     assert verdicts["cat/b"] == Verdict.ERROR

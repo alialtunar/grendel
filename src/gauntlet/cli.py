@@ -95,13 +95,13 @@ async def _execute(adapter, options, attacks, record) -> None:
 
 
 def _summary(record, path: Path | None) -> str:
-    executed = sum(1 for a in record.attempts if a.verdict.value == "skipped")
-    errors = sum(1 for a in record.attempts if a.verdict.value == "error")
+    m = record.metrics_summary()
     usage = record.total_usage
     where = str(path) if path is not None else "(not written)"
     return (
         f"run {record.run_id}: target={record.target_name} "
-        f"attempts={record.total_attempts} executed={executed} error={errors} "
+        f"attempts={record.total_attempts} succeeded={m['succeeded']} "
+        f"defended={m['defended']} error={m['errored']} asr={m['overall_asr']:.2%} "
         f"tokens={usage.total_tokens} est_cost=${record.total_cost_usd:.4f} -> {where}"
     )
 
@@ -258,13 +258,25 @@ def report(
                     "status": record.status.value,
                     "total_attempts": record.total_attempts,
                     "asr": record.asr,
+                    "metrics": record.metrics_summary(),
                 }
             )
         )
         return
 
+    metrics = record.metrics_summary()
     typer.echo(f"Run {record.run_id}")
     typer.echo(f"  target: {record.target_name} ({record.provider}/{record.model})")
     typer.echo(f"  status: {record.status.value}")
     typer.echo(f"  attempts: {record.total_attempts}")
-    typer.echo(f"  ASR: {record.asr:.2%}")
+    typer.echo(f"  ASR (overall): {metrics['overall_asr']:.2%}")
+    typer.echo(
+        f"  scored: {metrics['scored']} succeeded: {metrics['succeeded']} "
+        f"defended: {metrics['defended']} errored: {metrics['errored']} "
+        f"skipped: {metrics['skipped']}"
+    )
+    typer.echo("  by category:")
+    for cat, stats in sorted(metrics["by_category"].items()):
+        typer.echo(
+            f"    {cat}: ASR {stats['asr']:.2%} (succeeded {stats['succeeded']}/{stats['scored']})"
+        )

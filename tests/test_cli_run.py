@@ -44,14 +44,16 @@ def test_full_offline_run(monkeypatch, tmp_path: Path) -> None:
     out = tmp_path / "rec.json"
     result = runner.invoke(app, ["-c", EXAMPLE, "run", "--target", "gpt", "--out", str(out)])
     assert result.exit_code == 0, result.output
-    assert "executed=2" in result.output
+    # Phase 4 summary reports real scoring: both benign "ok" responses -> PASS (defended).
+    assert "defended=2" in result.output
+    assert "asr=0.00%" in result.output
     assert adapter.closed is True
 
     record = RunRecord.from_json(out.read_text(encoding="utf-8"))
     assert record.status == RunStatus.COMPLETED
     assert sorted(a.attack_id for a in record.attempts) == ["cat/a", "cat/b"]
     assert sorted(record.pack_ids) == ["cat/a", "cat/b"]
-    assert all(a.verdict == Verdict.SKIPPED for a in record.attempts)
+    assert all(a.verdict == Verdict.PASS for a in record.attempts)
 
 
 def test_pack_filter(monkeypatch, tmp_path: Path) -> None:

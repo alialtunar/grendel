@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 
 from gauntlet.cli import app
 from gauntlet.config import load_config
-from gauntlet.records import AttemptRecord, TokenUsage, Verdict, make_run_record
+from gauntlet.records import AttemptRecord, RunRecord, TokenUsage, Verdict, make_run_record
 from gauntlet.targets import build_target
 from gauntlet.targets.base import AdapterRequest
 
@@ -69,3 +69,68 @@ async def test_full_offline_flow(tmp_path: Path, monkeypatch) -> None:
     assert result.exit_code == 0
     assert record.run_id in result.output
     assert "gpt" in result.output
+
+
+def test_run_report_diff_offline(tmp_path: Path) -> None:
+    """End-to-end (offline): two records -> report html/md -> diff, all connecting."""
+    rec_a = RunRecord(
+        run_id="ea",
+        created_at=datetime.now(UTC),
+        target_name="gpt",
+        provider="openai",
+        model="gpt-4o-mini",
+        attempts=[
+            AttemptRecord(
+                attack_id="inj/x",
+                category="inj",
+                owasp="LLM01",
+                atlas="AML.T0051",
+                prompt="p",
+                verdict=Verdict.PASS,
+                latency_ms=5.0,
+            )
+        ],
+    )
+    rec_b = RunRecord(
+        run_id="eb",
+        created_at=datetime.now(UTC),
+        target_name="gpt",
+        provider="openai",
+        model="gpt-4o-mini",
+        attempts=[
+            AttemptRecord(
+                attack_id="inj/x",
+                category="inj",
+                owasp="LLM01",
+                atlas="AML.T0051",
+                prompt="p",
+                verdict=Verdict.FAIL,
+                latency_ms=9.0,
+            )
+        ],
+    )
+    a = tmp_path / "a.json"
+    b = tmp_path / "b.json"
+    a.write_text(rec_a.to_json(), encoding="utf-8")
+    b.write_text(rec_b.to_json(), encoding="utf-8")
+
+    html_out = tmp_path / "b.html"
+    md_out = tmp_path / "b.md"
+    assert (
+        runner.invoke(
+            app, ["report", "--run", str(b), "--format", "html", "--out", str(html_out)]
+        ).exit_code
+        == 0
+    )
+    assert (
+        runner.invoke(
+            app, ["report", "--run", str(b), "--format", "md", "--out", str(md_out)]
+        ).exit_code
+        == 0
+    )
+    assert html_out.read_text(encoding="utf-8").startswith("<!DOCTYPE html>")
+    assert "# Gauntlet report" in md_out.read_text(encoding="utf-8")
+
+    diff_res = runner.invoke(app, ["diff", str(a), str(b), "--format", "text"])
+    assert diff_res.exit_code == 0
+    assert "newly failing: inj/x" in diff_res.output

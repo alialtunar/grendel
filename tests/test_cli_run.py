@@ -123,6 +123,77 @@ def test_resume_runs_only_pack_ids(monkeypatch, tmp_path: Path) -> None:
     assert len(adapter.requests) == 1
 
 
+def test_fail_under_trips_exit_3(monkeypatch, tmp_path: Path) -> None:
+    # Fix #4/#14: FakeAdapter text "x" matches make_attack's success_when contains ["x"]
+    # -> Verdict.FAIL -> overall ASR > 0 -> the gate (--fail-under 0.0) trips exit 3.
+    attacks = [make_attack("cat/a")]
+    adapter = FakeAdapter(text="x")
+    _patch_packs(monkeypatch, attacks)
+    _patch_target(monkeypatch, adapter)
+
+    out = tmp_path / "rec.json"  # Fix #5: stable record path
+    result = runner.invoke(
+        app,
+        ["-c", EXAMPLE, "run", "--target", "gpt", "--fail-under", "0.0", "--out", str(out)],
+    )
+    assert result.exit_code == 3, result.output
+    # The summary is still printed and the record still written despite the gate trip.
+    assert "asr=" in result.output
+    assert out.exists()
+    record = RunRecord.from_json(out.read_text(encoding="utf-8"))
+    assert record.attempts[0].verdict == Verdict.FAIL
+
+
+def test_fail_under_pass_when_asr_at_or_below(monkeypatch, tmp_path: Path) -> None:
+    attacks = [make_attack("cat/a")]
+    adapter = FakeAdapter(text="x")  # ASR 1.0
+    _patch_packs(monkeypatch, attacks)
+    _patch_target(monkeypatch, adapter)
+
+    out = tmp_path / "rec.json"
+    result = runner.invoke(
+        app,
+        ["-c", EXAMPLE, "run", "--target", "gpt", "--fail-under", "1.0", "--out", str(out)],
+    )
+    assert result.exit_code == 0, result.output
+
+
+def test_fail_under_out_of_range_exits_2(monkeypatch) -> None:
+    attacks = [make_attack("cat/a")]
+    adapter = FakeAdapter(text="x")
+    _patch_packs(monkeypatch, attacks)
+    _patch_target(monkeypatch, adapter)
+    result = runner.invoke(app, ["-c", EXAMPLE, "run", "--target", "gpt", "--fail-under", "1.5"])
+    assert result.exit_code == 2
+    assert len(adapter.requests) == 0  # validated before any run
+
+
+def test_dry_run_fail_under_is_noop(monkeypatch) -> None:
+    attacks = [make_attack("cat/a")]
+    _patch_packs(monkeypatch, attacks)
+    result = runner.invoke(
+        app, ["-c", EXAMPLE, "run", "--target", "gpt", "--dry-run", "--fail-under", "0.0"]
+    )
+    assert result.exit_code == 0, result.output
+
+
+def test_fail_under_zero_scored_exit_0(monkeypatch, tmp_path: Path) -> None:
+    # Fix #7: a run with only ERROR attempts -> 0 scored -> overall_asr 0.0; 0.0 > 0.0 is False.
+    attacks = [make_attack("cat/a")]
+    adapter = FakeAdapter(failures=[RuntimeError("boom")] * 10)
+    _patch_packs(monkeypatch, attacks)
+    _patch_target(monkeypatch, adapter)
+
+    out = tmp_path / "rec.json"
+    result = runner.invoke(
+        app,
+        ["-c", EXAMPLE, "run", "--target", "gpt", "--fail-under", "0.0", "--out", str(out)],
+    )
+    assert result.exit_code == 0, result.output
+    record = RunRecord.from_json(out.read_text(encoding="utf-8"))
+    assert record.metrics_summary()["overall_asr"] == 0.0
+
+
 def test_run_with_controls_reports_utility(monkeypatch, tmp_path: Path) -> None:
     from gauntlet.controls import BenignControl
 

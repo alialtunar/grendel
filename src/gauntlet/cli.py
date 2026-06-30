@@ -127,6 +127,19 @@ def _summary(record, path: Path | None) -> str:
     )
 
 
+def _apply_gate(record: RunRecord, fail_under: float | None) -> None:
+    """The CI regression gate (spec §4): exit 3 when overall ASR exceeds the threshold.
+
+    Called at the END of both the plain and the TUI run paths — after the record is
+    persisted and the summary printed — so CI still gets the artifact on a gate trip.
+    A None threshold (the default) is a no-op.
+    """
+    if fail_under is None:
+        return
+    if record.metrics_summary()["overall_asr"] > fail_under:
+        raise typer.Exit(code=3)
+
+
 def _build_judge_scorer(cfg, *, dry_run: bool):
     """Build a judge-enabled Scorer + its (separate) adapter; exit 2 on bad config (Fix #2)."""
     target = cfg.judge.target
@@ -172,6 +185,13 @@ def run(
     controls: Annotated[
         bool, typer.Option("--controls/--no-controls", help="Also run benign controls.")
     ] = False,
+    fail_under: Annotated[
+        float | None,
+        typer.Option(
+            "--fail-under",
+            help="Fail (exit 3) if overall ASR exceeds this threshold [0.0-1.0]; CI gate.",
+        ),
+    ] = None,
     config: ConfigOpt = None,
 ) -> None:
     """Run selected attack packs against a target, recording every attempt."""
@@ -179,6 +199,9 @@ def run(
     pack = pack or []
     if tui and dry_run:
         typer.echo("--tui is incompatible with --dry-run (dry-run sends nothing)", err=True)
+        raise typer.Exit(code=2)
+    if fail_under is not None and not (0.0 <= fail_under <= 1.0):
+        typer.echo(f"--fail-under must be in [0.0, 1.0], got {fail_under}", err=True)
         raise typer.Exit(code=2)
     try:
         info = resolve_target_info(target, cfg)
@@ -268,6 +291,7 @@ def run(
         if out is not None:
             out.write_text(record.to_json(), encoding="utf-8")
         typer.echo(_summary(record, out or record_path))
+        _apply_gate(record, fail_under)
         return
 
     asyncio.run(
@@ -290,6 +314,7 @@ def run(
         out.write_text(record.to_json(), encoding="utf-8")
 
     typer.echo(_summary(record, out or record_path))
+    _apply_gate(record, fail_under)
 
 
 @app.command(name="list")
@@ -347,13 +372,29 @@ def list_(
                 )
 
 
+def _emit(rendered: str, out: Path | None, label: str) -> None:
+    """Write the rendered report to --out (utf-8) or print it to stdout."""
+    if out is not None:
+        out.write_text(rendered, encoding="utf-8")
+        typer.echo(f"wrote {label} report -> {out}")
+    else:
+        typer.echo(rendered)
+
+
 @app.command()
 def report(
     ctx: typer.Context,
     run: Annotated[Path, typer.Option("--run", help="Path to a RunRecord JSON file.")],
-    format: Annotated[str, typer.Option("--format", help="Output format: text or json.")] = "text",
+    format: Annotated[
+        str, typer.Option("--format", help="Output format: text, json, md, or html.")
+    ] = "text",
+    out: Annotated[
+        Path | None, typer.Option("--out", help="Write the rendered report here (else stdout).")
+    ] = None,
 ) -> None:
     """Load a RunRecord JSON and print a summary."""
+    from . import reports as reportsmod
+
     if not run.exists():
         typer.echo(f"run record not found: {run}", err=True)
         raise typer.Exit(code=2)
@@ -364,20 +405,28 @@ def report(
         typer.echo(f"invalid run record {run}: {exc}", err=True)
         raise typer.Exit(code=2) from exc
 
-    if format == "json":
-        typer.echo(
-            json.dumps(
-                {
-                    "run_id": record.run_id,
-                    "target_name": record.target_name,
-                    "status": record.status.value,
-                    "total_attempts": record.total_attempts,
-                    "asr": record.asr,
-                    "metrics": record.metrics_summary(),
-                }
-            )
-        )
+    if format == "md":
+        _emit(reportsmod.render_markdown(record), out, "md")
         return
+    if format == "html":
+        _emit(reportsmod.render_html(record), out, "html")
+        return
+    if format == "json":
+        rendered = json.dumps(
+            {
+                "run_id": record.run_id,
+                "target_name": record.target_name,
+                "status": record.status.value,
+                "total_attempts": record.total_attempts,
+                "asr": record.asr,
+                "metrics": record.metrics_summary(),
+            }
+        )
+        _emit(rendered, out, "json")
+        return
+    if format != "text":
+        typer.echo(f"unknown --format {format!r}; valid values: text, json, md, html", err=True)
+        raise typer.Exit(code=2)
 
     metrics = record.metrics_summary()
     typer.echo(f"Run {record.run_id}")
@@ -414,6 +463,54 @@ def report(
         typer.echo(
             f"    {code}: ASR {stats['asr']:.2%} (succeeded {stats['succeeded']}/{stats['scored']})"
         )
+
+
+def _load_record(path: Path) -> RunRecord:
+    """Load a RunRecord JSON or exit 2 (the report/diff load convention)."""
+    if not path.exists():
+        typer.echo(f"run record not found: {path}", err=True)
+        raise typer.Exit(code=2)
+    try:
+        return RunRecord.from_json(path.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001 — surface any parse failure as a usage error
+        typer.echo(f"invalid run record {path}: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+
+
+@app.command()
+def diff(
+    ctx: typer.Context,
+    run_a: Annotated[Path, typer.Argument(help="Baseline RunRecord JSON (A).")],
+    run_b: Annotated[Path, typer.Argument(help="New RunRecord JSON (B).")],
+    format: Annotated[
+        str, typer.Option("--format", help="Output format: text, json, or md.")
+    ] = "text",
+    out: Annotated[
+        Path | None, typer.Option("--out", help="Write the rendered diff here (else stdout).")
+    ] = None,
+) -> None:
+    """Diff two run records: ASR deltas, newly-failing/fixed attacks, cost/latency."""
+    from . import diff as diffmod
+
+    a = _load_record(run_a)
+    b = _load_record(run_b)
+    d = diffmod.diff_runs(a, b)
+
+    if format == "text":
+        rendered = diffmod.render_text(d)
+    elif format == "md":
+        rendered = diffmod.render_markdown(d)
+    elif format == "json":
+        rendered = json.dumps(d.model_dump())
+    else:
+        typer.echo(f"unknown --format {format!r}; valid values: text, json, md", err=True)
+        raise typer.Exit(code=2)
+
+    if out is not None:
+        out.write_text(rendered, encoding="utf-8")
+        typer.echo(f"wrote diff -> {out}")
+    else:
+        typer.echo(rendered)
 
 
 @app.command()

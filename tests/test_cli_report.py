@@ -103,6 +103,35 @@ def test_report_json_includes_utility(tmp_path: Path) -> None:
     assert "control" not in m["by_category"]
 
 
+def test_report_md_prints_and_out_roundtrip(tmp_path: Path) -> None:
+    path = _record_file(tmp_path)
+    stdout = runner.invoke(app, ["report", "--run", str(path), "--format", "md"])
+    assert stdout.exit_code == 0, stdout.output
+    assert "# Gauntlet report" in stdout.output
+
+    out = tmp_path / "rep.md"
+    written = runner.invoke(
+        app, ["report", "--run", str(path), "--format", "md", "--out", str(out)]
+    )
+    assert written.exit_code == 0, written.output
+    assert "wrote md report ->" in written.output
+    # Fix #13: the file content equals the stdout-rendered string (modulo the trailing newline).
+    assert out.read_text(encoding="utf-8").rstrip("\n") == stdout.output.rstrip("\n")
+
+
+def test_report_html_prints(tmp_path: Path) -> None:
+    path = _record_file(tmp_path)
+    result = runner.invoke(app, ["report", "--run", str(path), "--format", "html"])
+    assert result.exit_code == 0, result.output
+    assert "<!DOCTYPE html>" in result.output
+
+
+def test_report_bad_format_exit_2(tmp_path: Path) -> None:
+    path = _record_file(tmp_path)
+    result = runner.invoke(app, ["report", "--run", str(path), "--format", "xml"])
+    assert result.exit_code == 2
+
+
 def test_report_json_includes_metrics(tmp_path: Path) -> None:
     path = _record_file(tmp_path)
     result = runner.invoke(app, ["report", "--run", str(path), "--format", "json"])

@@ -8,17 +8,28 @@ from gauntlet.attacks import Attack
 from gauntlet.targets.base import AdapterRequest, AdapterResponse, TargetAdapter
 
 
-def make_attack(id: str, payload: str = "do the bad thing") -> Attack:
-    """Build a minimal valid Attack. ``id`` must be ``<category>/<slug>``."""
+def make_attack(
+    id: str,
+    payload: str = "do the bad thing",
+    *,
+    severity: str = "high",
+    owasp: str = "LLM01",
+    atlas: str = "AML.T0051",
+) -> Attack:
+    """Build a minimal valid Attack. ``id`` must be ``<category>/<slug>``.
+
+    severity/owasp/atlas are overridable so tests can build attacks with differing
+    metadata (FailureItem joins, flag_severity, severity filtering).
+    """
     category = id.split("/", 1)[0]
     return Attack(
         id=id,
         name=f"attack {id}",
         category=category,
-        owasp="LLM01",
-        atlas="AML.T0051",
+        owasp=owasp,
+        atlas=atlas,
         surface="prompt",
-        severity="high",
+        severity=severity,
         license="MIT",
         version=1,
         payload=payload,

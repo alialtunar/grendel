@@ -122,11 +122,15 @@ def run(
     out: Annotated[
         Path | None, typer.Option("--out", help="Also write the run record here.")
     ] = None,
+    tui: Annotated[bool, typer.Option("--tui", help="Live TUI scoreboard (Textual).")] = False,
     config: ConfigOpt = None,
 ) -> None:
     """Run selected attack packs against a target, recording every attempt."""
     cfg = _resolve_config(ctx, config)
     pack = pack or []
+    if tui and dry_run:
+        typer.echo("--tui is incompatible with --dry-run (dry-run sends nothing)", err=True)
+        raise typer.Exit(code=2)
     try:
         info = resolve_target_info(target, cfg)
         adapter = build_target(target, cfg, dry_run=dry_run)
@@ -171,6 +175,36 @@ def run(
         )
 
     log.info("run dispatch", extra={"target": target, "attacks": len(selected)})
+
+    # --- TUI: drive the real runner via the on_attempt hook, then persist + summarize ---
+    if tui:
+        # Cache the path up front (fix #12): run_path only reads output_dir, but compute it
+        # before .run()/aclose so adapter state is irrelevant to the artifact location.
+        record_path = Runner(adapter, cfg.run).run_path(record)
+
+        def engine(on_attempt):
+            async def _run():
+                try:
+                    return await Runner(adapter, cfg.run, on_attempt=on_attempt).run(
+                        selected, record
+                    )
+                finally:
+                    await adapter.aclose()
+
+            return _run()
+
+        from .tui.app import ScoreboardApp  # lazy: plain path never imports textual
+
+        ScoreboardApp(selected, record, target_name=target, engine=engine).run()
+
+        if resume is not None:
+            resume.write_text(record.to_json(), encoding="utf-8")
+            record_path = resume
+        if out is not None:
+            out.write_text(record.to_json(), encoding="utf-8")
+        typer.echo(_summary(record, out or record_path))
+        return
+
     asyncio.run(_execute(adapter, cfg.run, selected, record))
 
     record_path = Runner(adapter, cfg.run).run_path(record)

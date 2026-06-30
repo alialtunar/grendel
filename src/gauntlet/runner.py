@@ -82,6 +82,7 @@ class Runner:
         now: Callable[[], datetime] = _utc_now,
         monotonic: Callable[[], float] = time.monotonic,
         scorer: Scorer | None = None,
+        on_attempt: Callable[[AttemptRecord], None] | None = None,
     ) -> None:
         self.adapter = adapter
         self.options = options
@@ -90,6 +91,7 @@ class Runner:
         self._rng = rng if rng is not None else random.Random(options.retry_seed)
         self._now = now
         self._monotonic = monotonic
+        self._on_attempt = on_attempt
         self._write_lock = asyncio.Lock()
 
     def run_path(self, record: RunRecord) -> Path:
@@ -124,6 +126,13 @@ class Runner:
             record.attempts = [a for a in record.attempts if a.attack_id != attempt.attack_id]
             record.attempts.append(attempt)
             self._atomic_write(record)
+        # Progress hook, fired AFTER persistence and OUTSIDE the lock (a slow UI callback
+        # must never block the write path). A raising callback must never crash a run.
+        if self._on_attempt is not None:
+            try:
+                self._on_attempt(attempt)
+            except Exception:  # noqa: BLE001 — a UI callback must never abort a run
+                log.exception("on_attempt callback raised; continuing")
 
     def _is_transient(self, exc: BaseException) -> bool:
         if isinstance(exc, asyncio.TimeoutError):  # builtins.TimeoutError in 3.11+

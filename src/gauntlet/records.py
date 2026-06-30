@@ -33,6 +33,23 @@ class TokenUsage(BaseModel):
     def total_tokens(self) -> int:
         return self.prompt_tokens + self.completion_tokens
 
+    def __add__(self, other: TokenUsage) -> TokenUsage:
+        if not isinstance(other, TokenUsage):
+            return NotImplemented
+        return TokenUsage(
+            prompt_tokens=self.prompt_tokens + other.prompt_tokens,
+            completion_tokens=self.completion_tokens + other.completion_tokens,
+        )
+
+    def __radd__(self, other: object) -> TokenUsage:
+        # Lets sum(...) start from 0.
+        if other == 0:
+            return TokenUsage(
+                prompt_tokens=self.prompt_tokens,
+                completion_tokens=self.completion_tokens,
+            )
+        return NotImplemented
+
 
 class AttemptRecord(BaseModel):
     attempt_id: str = Field(default_factory=lambda: uuid.uuid4().hex)
@@ -46,6 +63,7 @@ class AttemptRecord(BaseModel):
     score_tier: str | None = None
     error: str | None = None
     usage: TokenUsage = TokenUsage()
+    cost_usd: float | None = None
     latency_ms: float | None = None
     started_at: datetime | None = None
     finished_at: datetime | None = None
@@ -66,6 +84,19 @@ class RunRecord(BaseModel):
     @property
     def total_attempts(self) -> int:
         return len(self.attempts)
+
+    @property
+    def total_usage(self) -> TokenUsage:
+        """Sum of every attempt's token usage (derived, not serialized)."""
+        total = TokenUsage()
+        for attempt in self.attempts:
+            total = total + attempt.usage
+        return total
+
+    @property
+    def total_cost_usd(self) -> float:
+        """Sum of attempt cost_usd, treating None as 0 (derived, not serialized)."""
+        return sum(a.cost_usd or 0.0 for a in self.attempts)
 
     @property
     def asr(self) -> float:

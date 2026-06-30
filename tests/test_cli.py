@@ -43,7 +43,7 @@ def test_run_dry_run_offline(monkeypatch) -> None:
     assert result.exit_code == 0
     assert "openai" in result.output
     assert "gpt-4o-mini" in result.output
-    assert "no attack packs" in result.output
+    assert "not sent" in result.output
 
 
 def test_invalid_config_exit_code_2(tmp_path: Path) -> None:

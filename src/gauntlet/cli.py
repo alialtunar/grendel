@@ -12,8 +12,9 @@ import typer
 from .config import load_config
 from .errors import ConfigError, PackError
 from .logging_setup import configure_logging, get_logger
-from .packloader import default_packs_dir, list_packs
-from .records import RunRecord
+from .packloader import default_packs_dir, list_packs, load_packs
+from .records import RunRecord, make_run_record
+from .runner import Runner
 from .targets import PRESETS, build_target, resolve_target_info
 
 app = typer.Typer(
@@ -68,44 +69,118 @@ def main(
     ctx.obj["config"] = cfg
 
 
+def _select_attacks(attacks, pack):
+    """Filter attacks by --pack values (each matches an attack id or category).
+
+    Returns the selected attacks. A requested --pack matching nothing raises a usage
+    error (exit 2). No --pack -> all attacks.
+    """
+    if not pack:
+        return list(attacks)
+    requested = set(pack)
+    selected = [a for a in attacks if a.id in requested or a.category in requested]
+    matched = {a.id for a in attacks} | {a.category for a in attacks}
+    unknown = sorted(requested - matched)
+    if unknown:
+        typer.echo(f"unknown --pack value(s): {', '.join(unknown)}", err=True)
+        raise typer.Exit(code=2)
+    return selected
+
+
+async def _execute(adapter, options, attacks, record) -> None:
+    try:
+        await Runner(adapter, options).run(attacks, record)
+    finally:
+        await adapter.aclose()
+
+
+def _summary(record, path: Path | None) -> str:
+    executed = sum(1 for a in record.attempts if a.verdict.value == "skipped")
+    errors = sum(1 for a in record.attempts if a.verdict.value == "error")
+    usage = record.total_usage
+    where = str(path) if path is not None else "(not written)"
+    return (
+        f"run {record.run_id}: target={record.target_name} "
+        f"attempts={record.total_attempts} executed={executed} error={errors} "
+        f"tokens={usage.total_tokens} est_cost=${record.total_cost_usd:.4f} -> {where}"
+    )
+
+
 @app.command()
 def run(
     ctx: typer.Context,
     target: Annotated[str, typer.Option("--target", help="Name of the configured target.")],
     pack: Annotated[
-        list[str] | None, typer.Option("--pack", help="Attack pack id (Phase 2+).")
+        list[str] | None, typer.Option("--pack", help="Attack pack id or category.")
     ] = None,
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Resolve only; no network.")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Resolve + plan only; no network.")] = (
+        False
+    ),
+    resume: Annotated[
+        Path | None, typer.Option("--resume", help="Resume a RunRecord JSON in place.")
+    ] = None,
     out: Annotated[
-        Path | None, typer.Option("--out", help="Where to write the run record.")
+        Path | None, typer.Option("--out", help="Also write the run record here.")
     ] = None,
     config: ConfigOpt = None,
 ) -> None:
-    """Resolve a target and report what would run (no attacks exist until Phase 2)."""
+    """Run selected attack packs against a target, recording every attempt."""
     cfg = _resolve_config(ctx, config)
     pack = pack or []
     try:
         info = resolve_target_info(target, cfg)
         adapter = build_target(target, cfg, dry_run=dry_run)
+        attacks = load_packs(default_packs_dir())
     except ConfigError as exc:
         typer.echo(f"config error: {exc}", err=True)
         raise typer.Exit(code=2) from exc
+    except PackError as exc:
+        typer.echo(f"pack error: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
 
-    if not dry_run:
-        # Close the client we just created; Phase 1 sends nothing.
-        asyncio.run(adapter.aclose())
+    # --- dry run: plan only, no network, no record ---
+    if dry_run:
+        selected = _select_attacks(attacks, pack)
+        typer.echo(
+            f"target {target!r}: provider={info['provider']} model={info['model']} "
+            f"base_url={info['base_url']} (api_style={info['api_style']})"
+        )
+        typer.echo(f"plan: {len(selected)} attack(s)")
+        for atk in selected:
+            typer.echo(f"  {atk.id}")
+        typer.echo("est. cost: $0.00 (not sent)")
+        return
 
-    log.info(
-        "run dispatch",
-        extra={"target": target, "dry_run": dry_run, "packs": pack},
-    )
-    typer.echo(
-        f"target {target!r}: provider={info['provider']} model={info['model']} "
-        f"base_url={info['base_url']} (api_style={info['api_style']})"
-    )
-    if out:
-        typer.echo(f"would write run record to: {out}")
-    typer.echo("no attack packs available until Phase 2; nothing to run.")
+    # --- resume: re-derive selection from the record's pack_ids ---
+    if resume is not None:
+        if not resume.exists():
+            typer.echo(f"resume record not found: {resume}", err=True)
+            raise typer.Exit(code=2)
+        record = RunRecord.from_json(resume.read_text(encoding="utf-8"))
+        wanted = set(record.pack_ids)
+        selected = [a for a in attacks if a.id in wanted]
+        cfg.run.output_dir = resume.parent
+    else:
+        selected = _select_attacks(attacks, pack)
+        record = make_run_record(
+            target_name=target,
+            provider=info["provider"],
+            model=info["model"],
+            config=cfg,
+            pack_ids=[a.id for a in selected],
+        )
+
+    log.info("run dispatch", extra={"target": target, "attacks": len(selected)})
+    asyncio.run(_execute(adapter, cfg.run, selected, record))
+
+    record_path = Runner(adapter, cfg.run).run_path(record)
+    if resume is not None:
+        resume.write_text(record.to_json(), encoding="utf-8")
+        record_path = resume
+    if out is not None:
+        out.write_text(record.to_json(), encoding="utf-8")
+
+    typer.echo(_summary(record, out or record_path))
 
 
 @app.command(name="list")

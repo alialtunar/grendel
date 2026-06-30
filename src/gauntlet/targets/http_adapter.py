@@ -61,7 +61,8 @@ class HTTPTargetAdapter(TargetAdapter):
 
         if not (200 <= resp.status_code < 300):
             raise AdapterError(
-                f"target {self.name!r} returned HTTP {resp.status_code}: {resp.text[:500]}"
+                f"target {self.name!r} returned HTTP {resp.status_code}: {resp.text[:500]}",
+                status_code=resp.status_code,
             )
 
         data = resp.json()

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from .errors import ConfigError
 
@@ -25,6 +25,12 @@ class RunOptions(BaseModel):
     max_tokens: int = 512
     temperature: float = 0.0
     request_timeout_s: float = 30.0
+    concurrency: int = Field(default=4, ge=1)
+    rps: float | None = Field(default=None, gt=0)
+    max_retries: int = Field(default=3, ge=0)
+    retry_base_delay_s: float = Field(default=0.5, ge=0)
+    retry_max_delay_s: float = Field(default=30.0, ge=0)
+    retry_seed: int | None = None
 
 
 class TargetConfig(BaseModel):

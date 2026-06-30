@@ -10,7 +10,16 @@ class ConfigError(GauntletError):
 
 
 class AdapterError(GauntletError):
-    """Raised when a target adapter fails (e.g. non-2xx HTTP response)."""
+    """Raised when a target adapter fails (e.g. non-2xx HTTP response).
+
+    Carries an optional ``status_code`` so the runner can classify 429/5xx as
+    transient. ``AdapterError("msg")`` still works (status_code defaults to None),
+    and ``str(exc)`` stays the human-readable message.
+    """
+
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 class ProviderError(GauntletError):

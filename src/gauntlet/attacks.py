@@ -63,6 +63,15 @@ class SideEffectCheck(BaseModel):
     assert_: str = Field(alias="assert", min_length=1)
 
 
+class McpAssertCheck(BaseModel):
+    """Protocol-level MCP assertion against an mcp target (evaluated in Phase 8, T4)."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    type: Literal["mcp-assert"]
+    assert_: str = Field(alias="assert", min_length=1)
+
+
 class ClassifierCheck(BaseModel):
     """Refusal/harm classifier outcome (evaluated in Phase 4 T2)."""
 
@@ -85,7 +94,7 @@ class JudgeCheck(BaseModel):
 
 
 SuccessWhen = Annotated[
-    StringCheck | SideEffectCheck | ClassifierCheck | JudgeCheck,
+    StringCheck | SideEffectCheck | McpAssertCheck | ClassifierCheck | JudgeCheck,
     Field(discriminator="type"),
 ]
 

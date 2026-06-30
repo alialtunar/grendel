@@ -21,10 +21,10 @@ def test_packs_dir_is_populated() -> None:
         assert list(sub.glob("*.yaml")), f"no yaml files in {sub}"
 
 
-def test_loads_exactly_seventeen() -> None:
-    # 12 string packs (prompt-injection + jailbreak) + 5 side-effect tool-abuse packs.
+def test_loads_exactly_twenty_one() -> None:
+    # 12 string packs (prompt-injection + jailbreak) + 5 side-effect tool-abuse + 4 mcp.
     attacks = load_packs(default_packs_dir())
-    assert len(attacks) == 17
+    assert len(attacks) == 21
 
 
 def test_ids_unique_and_match_path() -> None:
@@ -41,21 +41,26 @@ def test_category_counts() -> None:
     counts: dict[str, int] = {}
     for a in attacks:
         counts[a.category] = counts.get(a.category, 0) + 1
-    assert counts == {"prompt-injection": 6, "jailbreak": 6, "tool-abuse": 5}
+    assert counts == {"prompt-injection": 6, "jailbreak": 6, "tool-abuse": 5, "mcp": 4}
 
 
 def test_all_fields_well_formed() -> None:
     attacks = load_packs(default_packs_dir())
     for a in attacks:
         assert a.license in ALLOWED_LICENSES
-        # tool-abuse packs are side-effect checks; all others are string checks.
-        expected_type = "side-effect" if a.category == "tool-abuse" else "string"
-        assert a.success_when.type == expected_type
+        # Fix #11: tool-abuse -> side-effect; mcp -> mcp-assert OR side-effect (3+1);
+        # everything else -> string.
+        if a.category == "tool-abuse":
+            assert a.success_when.type == "side-effect"
+        elif a.category == "mcp":
+            assert a.success_when.type in {"mcp-assert", "side-effect"}
+        else:
+            assert a.success_when.type == "string"
         assert OWASP_RE.match(a.owasp)
         assert ATLAS_RE.match(a.atlas)
 
 
-def test_list_packs_seventeen_rows_license_ok() -> None:
+def test_list_packs_twenty_one_rows_license_ok() -> None:
     infos = list_packs(default_packs_dir())
-    assert len(infos) == 17
+    assert len(infos) == 21
     assert all(info.license_ok for info in infos)

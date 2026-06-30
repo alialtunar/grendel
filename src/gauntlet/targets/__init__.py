@@ -47,7 +47,10 @@ def resolve_target_info(name: str, config: GauntletConfig) -> dict:
     if target.type != "http":
         if target.type == "mcp":
             mcp = target.mcp
-            model = (mcp.url or " ".join(mcp.command or [])) if mcp else name
+            # Fix #3/#10: never the empty string — fall back to fake_client, then name.
+            model = (
+                (mcp.url or " ".join(mcp.command or []) or mcp.fake_client) if mcp else None
+            ) or name
             base_url = (mcp.url if mcp else None) or "(mcp stdio)"
         else:  # python / agent
             model = target.entrypoint or name
@@ -98,7 +101,15 @@ def build_target(
         # Construction stays offline — the real `mcp` import only fires on connect/send.
         from .mcp_adapter import MCPTargetAdapter
 
-        return MCPTargetAdapter(name=name, config=target.mcp)
+        client = None
+        if target.mcp is not None and target.mcp.fake_client:
+            # Offline seam: resolve and call the zero-arg factory for an in-memory client.
+            # No `mcp` import on this path. dry_run still builds the shell; the factory only
+            # constructs the client (no tool interaction until send()).
+            from ..agents import load_callable
+
+            client = load_callable(target.mcp.fake_client)()
+        return MCPTargetAdapter(name=name, config=target.mcp, client=client)
 
     preset = resolve_provider(target.provider, config)
     base_url = _resolve_base_url(name, target, preset)

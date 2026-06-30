@@ -37,6 +37,14 @@ def test_list_packs_prints_twelve_grouped() -> None:
         assert attack_id in result.output
 
 
+def test_list_packs_includes_mcp_category() -> None:
+    # M5 (additive): the mcp category surfaces in `gauntlet list --packs`.
+    result = runner.invoke(app, ["-c", EXAMPLE, "list", "--packs"])
+    assert result.exit_code == 0
+    assert "mcp (4):" in result.output
+    assert "mcp/rug-pull-03" in result.output
+
+
 def test_phase1_placeholder_absent() -> None:
     # Review fix #12.
     result = runner.invoke(app, ["-c", EXAMPLE, "list", "--packs"])

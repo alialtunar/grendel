@@ -66,6 +66,7 @@ def load_packs(
         _check_coherence(path, attack)
         _check_license(path, attack, allow_unlisted_licenses=allow_unlisted_licenses)
         _check_side_effect_assertion(path, attack)
+        _check_mcp_assertion(path, attack)
         attacks.append(attack)
 
     attacks.sort(key=lambda a: a.id)
@@ -128,6 +129,25 @@ def _check_side_effect_assertion(path: Path, attack: Attack) -> None:
     except AssertionSyntaxError as exc:
         raise PackError(
             f"attack {attack.id!r} in {path} has a malformed side-effect assertion: {exc}"
+        ) from exc
+
+
+def _check_mcp_assertion(path: Path, attack: Attack) -> None:
+    """Fix #7: fail fast on a malformed mcp-assert assertion (PackError naming the file).
+
+    A SEPARATE function (not overloading the side-effect check) since it parses the
+    mcp-assert grammar. Non-breaking for non-mcp packs (no ``mcp-assert`` success_when).
+    """
+    check = attack.success_when
+    if getattr(check, "type", None) != "mcp-assert":
+        return
+    from .mcp_assert import McpAssertSyntaxError, parse_mcp_assertion
+
+    try:
+        parse_mcp_assertion(check.assert_)
+    except McpAssertSyntaxError as exc:
+        raise PackError(
+            f"attack {attack.id!r} in {path} has a malformed mcp assertion: {exc}"
         ) from exc
 
 

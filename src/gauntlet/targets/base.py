@@ -6,6 +6,8 @@ from abc import ABC, abstractmethod
 
 from pydantic import BaseModel
 
+from ..mcp_surface import McpObservation
+
 
 class AdapterRequest(BaseModel):
     prompt: str
@@ -26,6 +28,9 @@ class AdapterResponse(BaseModel):
     # Phase 7 (additive, tri-state): None = adapter does not observe tools; [] = agent
     # observed zero calls; list = observed calls (each a ToolCall snapshot).
     tool_calls: list[dict] | None = None
+    # Phase 8 (additive): None = adapter exposes no MCP observation (non-mcp targets ->
+    # mcp-assert checks are not-applicable -> SKIPPED).
+    mcp: McpObservation | None = None
 
 
 class TargetAdapter(ABC):

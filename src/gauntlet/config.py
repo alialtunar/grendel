@@ -43,9 +43,10 @@ class RunOptions(BaseModel):
 class McpConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    command: list[str] | None = None  # stdio server launch argv (real path; Phase 8 detail)
+    command: list[str] | None = None  # stdio server launch argv (real path; still stubbed)
     url: str | None = None  # or a server URL
     tool: str | None = None  # optional default tool to probe
+    fake_client: str | None = None  # "module:attr" factory -> in-memory client (OFFLINE seam)
 
 
 class TargetConfig(BaseModel):
@@ -130,11 +131,12 @@ class GauntletConfig(BaseModel):
                         f"'entrypoint' (\"module:attr\")"
                     )
                 if target.type == "mcp" and (
-                    target.mcp is None or not (target.mcp.command or target.mcp.url)
+                    target.mcp is None
+                    or not (target.mcp.command or target.mcp.url or target.mcp.fake_client)
                 ):
                     raise ConfigError(
                         f"target {target_name!r} of type 'mcp' requires an 'mcp' block "
-                        f"with 'command' or 'url'"
+                        f"with 'command' or 'url' or 'fake_client'"
                     )
                 continue
             # Fix #6: provider/model are now Optional at the field level; re-require them

@@ -15,3 +15,8 @@ class AdapterError(GauntletError):
 
 class ProviderError(GauntletError):
     """Raised when a provider cannot be used (e.g. a required API key is missing)."""
+
+
+class PackError(GauntletError):
+    """Raised for any pack/loader failure (malformed YAML, validation, path/id
+    mismatch, license gating, duplicate id)."""

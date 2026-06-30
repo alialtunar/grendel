@@ -10,8 +10,9 @@ from typing import Annotated
 import typer
 
 from .config import load_config
-from .errors import ConfigError
+from .errors import ConfigError, PackError
 from .logging_setup import configure_logging, get_logger
+from .packloader import default_packs_dir, list_packs
 from .records import RunRecord
 from .targets import PRESETS, build_target, resolve_target_info
 
@@ -135,8 +136,25 @@ def list_(
             typer.echo(f"  {name} (custom, api_style={custom.api_style})")
 
     if packs or show_all:
+        try:
+            infos = list_packs(default_packs_dir())
+        except PackError as exc:
+            typer.echo(f"pack error: {exc}", err=True)
+            raise typer.Exit(code=2) from exc
+
         typer.echo("Packs:")
-        typer.echo("  no attack packs available until Phase 2.")
+        by_category: dict[str, list] = {}
+        for info in infos:
+            by_category.setdefault(info.category, []).append(info)
+        for category, rows in by_category.items():
+            typer.echo(f"  {category} ({len(rows)}):")
+            for info in rows:
+                suffix = "" if info.license_ok else " (unlisted license)"
+                typer.echo(
+                    f"    {info.id:<42} {info.owasp}  {info.atlas:<12} "
+                    f"{info.severity.value:<9} {info.success_type:<6} "
+                    f"[{info.license}]{suffix}"
+                )
 
 
 @app.command()

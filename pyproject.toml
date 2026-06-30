@@ -28,6 +28,7 @@ gauntlet = "gauntlet.cli:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/gauntlet"]
+artifacts = ["src/gauntlet/packs/**/*.yaml"]
 
 [tool.ruff]
 line-length = 100

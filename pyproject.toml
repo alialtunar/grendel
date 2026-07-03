@@ -47,9 +47,9 @@ dev = [
 
 [project.urls]
 # TODO(release): replace USERNAME with the real GitHub account before publishing.
-Homepage = "https://github.com/USERNAME/grendel"
-Repository = "https://github.com/USERNAME/grendel"
-Issues = "https://github.com/USERNAME/grendel/issues"
+Homepage = "https://github.com/alialtunar/grendel"
+Repository = "https://github.com/alialtunar/grendel"
+Issues = "https://github.com/alialtunar/grendel/issues"
 
 [project.scripts]
 grendel = "grendel.cli:app"

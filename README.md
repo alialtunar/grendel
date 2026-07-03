@@ -50,7 +50,7 @@ taken on PyPI); the installed command is still `grendel`.
 
 ```bash
 pipx install grendel-redteam                       # from PyPI (once published)
-pipx install "git+https://github.com/USERNAME/grendel"   # straight from GitHub, no PyPI needed
+pipx install "git+https://github.com/alialtunar/grendel"   # straight from GitHub, no PyPI needed
 ```
 
 **With pip:**
@@ -63,7 +63,7 @@ grendel --help
 **From source (development):**
 
 ```bash
-git clone https://github.com/USERNAME/grendel && cd grendel
+git clone https://github.com/alialtunar/grendel && cd grendel
 pip install -e ".[dev]"     # + ruff / pytest for development
 pip install -e ".[mcp]"     # + the MCP target adapter
 pip install -e ".[corpora]" # + garak, to import open attack corpora

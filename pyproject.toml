@@ -40,7 +40,7 @@ corpora = [
     "garak",  # `grendel import --source garak` auto-discovers garak's bundled corpora
 ]
 dev = [
-    "ruff>=0.9",
+    "ruff==0.9.9",  # pinned so CI lints identically to local (newer ruff enables UP042 etc.)
     "pytest>=8",
     "pytest-asyncio>=0.21,<1",
 ]

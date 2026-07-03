@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grendel — User Story & Nasıl Çalışır</title>
+<style>
+  :root{
+    --bg:#0a0e14; --panel:#0f1620; --panel2:#121b28; --line:#1e2a3a;
+    --ink:#e6edf3; --dim:#8b9bb0; --faint:#5a6b80;
+    --red:#ff4d5e; --redbg:#2a1116; --green:#38d39f; --greenbg:#0f261f;
+    --amber:#ffb454; --blue:#4aa8ff; --violet:#a879ff; --cyan:#3ad6d6;
+    --mono:"SFMono-Regular",ui-monospace,"Cascadia Code","Consolas",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:radial-gradient(1200px 700px at 78% -8%,#12202f 0%,var(--bg) 55%);color:var(--ink);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 24px 96px}
+
+  /* ---- hero ---- */
+  header.hero{padding:64px 0 40px;border-bottom:1px solid var(--line)}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--red);margin:0 0 14px}
+  h1{font-size:52px;line-height:1.02;margin:0;letter-spacing:-.02em;font-weight:800}
+  h1 .g{background:linear-gradient(92deg,var(--red),var(--amber));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--dim);font-size:19px;max-width:660px;margin:20px 0 0}
+  .pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:26px}
+  .pill{font-family:var(--mono);font-size:12px;color:var(--dim);border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 13px}
+  .pill b{color:var(--ink);font-weight:600}
+
+  section{padding-top:64px}
+  h2{font-size:13px;font-family:var(--mono);letter-spacing:.22em;text-transform:uppercase;color:var(--faint);margin:0 0 6px}
+  h2 .n{color:var(--red)}
+  .lead{font-size:26px;font-weight:700;letter-spacing:-.01em;margin:0 0 22px}
+
+  /* ---- persona card ---- */
+  .persona{display:flex;gap:20px;align-items:center;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:22px 24px}
+  .avatar{flex:0 0 58px;height:58px;border-radius:14px;background:linear-gradient(135deg,#2a1730,#1a2740);display:grid;place-items:center;font-size:28px;border:1px solid var(--line)}
+  .persona .role{font-family:var(--mono);font-size:12px;color:var(--violet);letter-spacing:.1em;text-transform:uppercase}
+  .persona h3{margin:2px 0 4px;font-size:20px}
+  .persona p{margin:0;color:var(--dim);font-size:15px}
+
+  .story{margin-top:22px;border-left:2px solid var(--red);padding:4px 0 4px 22px;font-size:20px;color:var(--ink)}
+  .story em{color:var(--amber);font-style:normal;font-weight:600}
+
+  /* ---- steps ---- */
+  .steps{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px}
+  .step .num{font-family:var(--mono);font-size:12px;color:var(--red);border:1px solid var(--redbg);background:var(--redbg);width:26px;height:26px;border-radius:8px;display:grid;place-items:center;margin-bottom:12px}
+  .step h4{margin:0 0 6px;font-size:16px}
+  .step p{margin:0;color:var(--dim);font-size:14px}
+
+  /* ---- terminal ---- */
+  .term{background:#080b10;border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-top:8px;box-shadow:0 24px 60px -30px #000}
+  .term .bar{display:flex;align-items:center;gap:7px;padding:11px 15px;background:var(--panel);border-bottom:1px solid var(--line)}
+  .dot{width:11px;height:11px;border-radius:50%}
+  .dot.r{background:#ff5f57}.dot.y{background:#febc2e}.dot.g{background:#28c840}
+  .term .title{margin-left:10px;font-family:var(--mono);font-size:12px;color:var(--faint)}
+  .term pre{margin:0;padding:18px 18px;font-family:var(--mono);font-size:13px;line-height:1.7;overflow-x:auto;color:#cdd9e5}
+  .c-cmd{color:#fff;font-weight:600}
+  .c-flag{color:var(--cyan)}
+  .c-dim{color:var(--faint)}
+  .c-ok{color:var(--green)}
+  .c-bad{color:var(--red)}
+  .c-warn{color:var(--amber)}
+  .c-q{color:var(--violet)}
+
+  /* ---- diagram frame ---- */
+  .diagram{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:22px;margin-top:8px}
+  .diagram svg{width:100%;height:auto;display:block}
+  .cap{color:var(--faint);font-family:var(--mono);font-size:12px;margin:14px 2px 0}
+
+  /* svg text helpers */
+  .svg-t{font-family:var(--sans);fill:var(--ink)}
+  .svg-m{font-family:var(--mono);fill:var(--dim)}
+
+  /* ---- tiers ---- */
+  .tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:8px}
+  .tier{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;position:relative;overflow:hidden}
+  .tier::before{content:"";position:absolute;inset:0 auto 0 0;width:4px}
+  .tier.s::before{background:var(--blue)}
+  .tier.j::before{background:var(--violet)}
+  .tier.e::before{background:var(--red)}
+  .tier .tag{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--faint)}
+  .tier h4{margin:6px 0 8px;font-size:16px}
+  .tier.j h4{color:var(--violet)}
+  .tier p{margin:0;color:var(--dim);font-size:13.5px}
+  .tier .for{margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--faint);border-top:1px dashed var(--line);padding-top:10px}
+
+  /* ---- callout ---- */
+  .callout{display:flex;gap:16px;background:linear-gradient(180deg,#1a0f14,#120b0e);border:1px solid #3a1720;border-radius:16px;padding:22px 24px;margin-top:26px}
+  .callout .ic{flex:0 0 42px;height:42px;border-radius:11px;background:#2a1116;display:grid;place-items:center;font-size:22px}
+  .callout h4{margin:0 0 4px;color:var(--red);font-size:16px}
+  .callout p{margin:0;color:var(--dim);font-size:14.5px}
+  .callout code{background:#20141a;color:var(--amber);padding:1px 6px;border-radius:5px;font-family:var(--mono);font-size:12.5px}
+
+  /* ---- report mock ---- */
+  .report{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;margin-top:8px}
+  .report .rhead{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,#141d2a,transparent)}
+  .report .rhead .l{font-family:var(--mono);font-size:13px;color:var(--dim)}
+  .asr{display:flex;align-items:baseline;gap:8px}
+  .asr .v{font-size:34px;font-weight:800;color:var(--red);letter-spacing:-.02em}
+  .asr .k{font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.15em}
+  .rows{padding:8px 0}
+  .row{display:grid;grid-template-columns:150px 1fr 58px;gap:14px;align-items:center;padding:9px 22px}
+  .row .cat{font-size:14px}
+  .bar{height:9px;border-radius:6px;background:#16202e;overflow:hidden;position:relative}
+  .bar i{position:absolute;inset:0 auto 0 0;display:block;height:100%;border-radius:6px}
+  .row .pct{font-family:var(--mono);font-size:13px;text-align:right}
+  .g-fill{background:linear-gradient(90deg,#1c7a5a,var(--green))}
+  .r-fill{background:linear-gradient(90deg,#7a1c28,var(--red))}
+  .a-fill{background:linear-gradient(90deg,#7a5a1c,var(--amber))}
+  .rfoot{display:flex;gap:10px;flex-wrap:wrap;padding:16px 22px;border-top:1px solid var(--line);background:var(--panel2)}
+  .chip{font-family:var(--mono);font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:7px;padding:5px 10px}
+  .chip b{color:var(--ink)}
+
+  footer{margin-top:80px;padding-top:26px;border-top:1px solid var(--line);color:var(--faint);font-family:var(--mono);font-size:12px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
+
+  @media(max-width:720px){
+    h1{font-size:38px}.steps{grid-template-columns:1fr}.tiers{grid-template-columns:1fr}
+    .row{grid-template-columns:110px 1fr 48px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HERO -->
+  <header class="hero">
+    <p class="kicker">Grendel · Agent Red-Team CLI</p>
+    <h1>AI agent'ını <span class="g">saldırıya sok</span>,<br>nerede çöktüğünü gör.</h1>
+    <p class="sub">Bir model veya agent endpoint'i ver, saldırı paketlerini seç, yüzlerce yetkili saldırıyı ateşle. Canlı skorbord kırmızı/yeşil dolar; sonunda notlanmış bir rapor çıkar.</p>
+    <div class="pills">
+      <span class="pill"><b>Model</b> veya <b>Agent</b> hedefi</span>
+      <span class="pill">Saldırılar = <b>YAML verisi</b></span>
+      <span class="pill">Skor: <b>LLM-as-judge</b> + <b>side-effect</b></span>
+      <span class="pill"><b>OWASP LLM Top 10</b> · MITRE ATLAS</span>
+      <span class="pill">Sağlayıcı-bağımsız · <b>sıfır hardcode</b></span>
+    </div>
+  </header>
+
+  <!-- USER STORY -->
+  <section>
+    <h2><span class="n">01</span> — User Story</h2>
+    <p class="lead">Kim, ne istiyor, neden?</p>
+
+    <div class="persona">
+      <div class="avatar">🛡️</div>
+      <div>
+        <div class="role">Persona</div>
+        <h3>Deniz — AI Ürün Mühendisi</h3>
+        <p>Müşteri destek agent'ı canlıya çıkmadan önce prompt injection ve tool-abuse'e karşı ne kadar dayanıklı, bilmek istiyor. Güvenlik ekibi değil; kod yazmadan hızlı sonuç istiyor.</p>
+      </div>
+    </div>
+
+    <div class="story">
+      <em>"Bir AI ürün mühendisi olarak</em>, agent'ıma sadece bağlantı bilgisini vererek
+      yetkili saldırılar çalıştırmak istiyorum <em>ki</em> canlıya çıkmadan önce hangi
+      saldırıların geçtiğini ve tam olarak hangi payload'ın onu kırdığını görebileyim."
+    </div>
+
+    <div class="steps">
+      <div class="step"><div class="num">1</div><h4>Hedef ekle</h4><p>Terminalden isim + endpoint + auth + model gir. Model de olur, agent de. Sağlayıcı fark etmez.</p></div>
+      <div class="step"><div class="num">2</div><h4>Saldırı seç</h4><p>Katalogdan paket seç: jailbreak, prompt-injection, tool-abuse, MCP. Hepsi düzenlenebilir YAML.</p></div>
+      <div class="step"><div class="num">3</div><h4>Çalıştır & izle</h4><p>Canlı skorbord her saldırıyı yeşil (savundu) / kırmızı (geçti) doldurur. ASR anlık.</p></div>
+      <div class="step"><div class="num">4</div><h4>Raporu al & tekrar oynat</h4><p>Notlu HTML/MD rapor + tek tuşla kırılma repro'su. CI'da eşik altındaysa build kırılır.</p></div>
+    </div>
+  </section>
+
+  <!-- WHAT IT DOES — FLOW DIAGRAM -->
+  <section>
+    <h2><span class="n">02</span> — Uygulama ne yapıyor?</h2>
+    <p class="lead">Uçtan uca akış</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 980 300" role="img" aria-label="Grendel akış diyagramı">
+        <defs>
+          <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+            <path d="M0,0 L9,4.5 L0,9 z" fill="#5a6b80"/>
+          </marker>
+          <linearGradient id="gRed" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#ff4d5e"/><stop offset="1" stop-color="#ffb454"/>
+          </linearGradient>
+        </defs>
+
+        <!-- TARGET -->
+        <rect x="10" y="96" width="150" height="108" rx="12" fill="#101a26" stroke="#1e2a3a"/>
+        <text x="85" y="122" text-anchor="middle" class="svg-m" font-size="11">HEDEF</text>
+        <text x="85" y="150" text-anchor="middle" class="svg-t" font-size="15" font-weight="700">Model</text>
+        <text x="85" y="172" text-anchor="middle" class="svg-m" font-size="12" fill="#8b9bb0">/ Agent</text>
+        <text x="85" y="192" text-anchor="middle" class="svg-m" font-size="10" fill="#5a6b80">http · mcp · yerel</text>
+
+        <!-- ATTACKS -->
+        <rect x="215" y="96" width="150" height="108" rx="12" fill="#101a26" stroke="#1e2a3a"/>
+        <text x="290" y="122" text-anchor="middle" class="svg-m" font-size="11">SALDIRI KATALOĞU</text>
+        <text x="290" y="150" text-anchor="middle" class="svg-t" font-size="15" font-weight="700">YAML paketleri</text>
+        <text x="290" y="174" text-anchor="middle" class="svg-m" font-size="11" fill="#8b9bb0">jailbreak · injection</text>
+        <text x="290" y="190" text-anchor="middle" class="svg-m" font-size="11" fill="#8b9bb0">tool-abuse · mcp</text>
+
+        <!-- RUNNER -->
+        <rect x="420" y="96" width="150" height="108" rx="12" fill="#16121f" stroke="#2a2140"/>
+        <text x="495" y="122" text-anchor="middle" class="svg-m" font-size="11">ÇALIŞTIRICI</text>
+        <text x="495" y="150" text-anchor="middle" class="svg-t" font-size="15" font-weight="700">Attack loop</text>
+        <text x="495" y="174" text-anchor="middle" class="svg-m" font-size="11" fill="#8b9bb0">payload → hedef</text>
+        <text x="495" y="190" text-anchor="middle" class="svg-m" font-size="11" fill="#8b9bb0">canlı skorbord</text>
+
+        <!-- SCORER -->
+        <rect x="625" y="96" width="150" height="108" rx="12" fill="#1a0f14" stroke="#3a1720"/>
+        <text x="700" y="122" text-anchor="middle" class="svg-m" font-size="11">SKORLAYICI</text>
+        <text x="700" y="150" text-anchor="middle" class="svg-t" font-size="15" font-weight="700" fill="#a879ff">LLM-judge</text>
+        <text x="700" y="174" text-anchor="middle" class="svg-m" font-size="11" fill="#8b9bb0">+ side-effect</text>
+        <text x="700" y="190" text-anchor="middle" class="svg-m" font-size="11" fill="#8b9bb0">geçti mi? savundu mu?</text>
+
+        <!-- REPORT -->
+        <rect x="830" y="96" width="140" height="108" rx="12" fill="#0f261f" stroke="#1c5a45"/>
+        <text x="900" y="122" text-anchor="middle" class="svg-m" font-size="11">ÇIKTI</text>
+        <text x="900" y="150" text-anchor="middle" class="svg-t" font-size="15" font-weight="700" fill="#38d39f">Rapor</text>
+        <text x="900" y="174" text-anchor="middle" class="svg-m" font-size="11" fill="#8b9bb0">HTML · MD · ASR</text>
+        <text x="900" y="190" text-anchor="middle" class="svg-m" font-size="11" fill="#8b9bb0">repro · CI gate</text>
+
+        <!-- arrows -->
+        <line x1="160" y1="150" x2="212" y2="150" stroke="#5a6b80" stroke-width="2" marker-end="url(#arrow)"/>
+        <line x1="365" y1="150" x2="417" y2="150" stroke="#5a6b80" stroke-width="2" marker-end="url(#arrow)"/>
+        <line x1="570" y1="150" x2="622" y2="150" stroke="#5a6b80" stroke-width="2" marker-end="url(#arrow)"/>
+        <line x1="775" y1="150" x2="827" y2="150" stroke="#5a6b80" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <!-- top bar -->
+        <rect x="10" y="40" width="960" height="30" rx="8" fill="none" stroke="#1e2a3a" stroke-dasharray="4 4"/>
+        <text x="490" y="60" text-anchor="middle" class="svg-m" font-size="12" fill="#5a6b80">grendel config  →  grendel run  →  grendel report   ·   tek CLI, sıfır kullanıcı kodu</text>
+      </svg>
+      <p class="cap">// hedef → saldırı → çalıştır → skorla → rapor  ·  her kutu = bir CLI komutu / bir modül</p>
+    </div>
+  </section>
+
+  <!-- LLM ROLE -->
+  <section>
+    <h2><span class="n">03</span> — LLM'in görevi ne?</h2>
+    <p class="lead">Saldırı "geçti mi?" kararını nasıl veriyoruz</p>
+
+    <div class="tiers">
+      <div class="tier s">
+        <div class="tag">TIER · hızlı</div>
+        <h4>String / refusal eşleşmesi</h4>
+        <p>Yanıtta yasak içerik ya da reddetme kalıbı var mı? Deterministik, bedava, anında. Çoğu net vakayı burada çözer.</p>
+        <div class="for">DÜZ MODEL hedefi için birincil</div>
+      </div>
+      <div class="tier j">
+        <div class="tag">TIER · T3 · LLM</div>
+        <h4>LLM-as-judge ⚖️</h4>
+        <p>Tartışmalı/gri vakalarda bir <b>yargıç model</b>, versiyonlu bir rubric ile "attack_succeeded" mı "defended" mı oyluyor. Ensemble (çoklu oy) ile karar netleşir; gerekçe rapora düşer.</p>
+        <div class="for">İşte LLM'in asıl görevi burada</div>
+      </div>
+      <div class="tier e">
+        <div class="tag">TIER · T4 · outcome</div>
+        <h4>Side-effect assertion</h4>
+        <p>Agent hedefinde başarı = <b>metin değil davranış</b>. "Onay almadan <code style="font-family:var(--mono);color:var(--amber)">send_email()</code> çağırdı mı?" gözlemlenen tool çağrılarıyla kanıtlanır.</p>
+        <div class="for">AGENT hedefi için birincil</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="ic">🎯</div>
+      <div>
+        <h4>Farkı yaratan nokta</h4>
+        <p>Grendel <b>agent'ı</b> test eder, sadece modeli değil. Düz model için başarı "bir string sızdı" demek; agent için başarı <b>gerçek bir yan etki</b> — saldırgana onaysız e-posta gitmesi. LLM-judge tartışmalı çağrıyı çözer; side-effect denetimi outcome'u kanıtlar. String eşleşmesi yalnızca fallback.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SEQUENCE: bir saldırının hayatı -->
+  <section>
+    <h2><span class="n">04</span> — Tek bir saldırının hayatı</h2>
+    <p class="lead">Bir payload ateşlendiğinde ne oluyor</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 980 330" role="img" aria-label="Saldırı sequence diyagramı">
+        <defs>
+          <marker id="arrow2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+            <path d="M0,0 L9,4.5 L0,9 z" fill="#8b9bb0"/>
+          </marker>
+          <marker id="arrowR" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+            <path d="M0,0 L9,4.5 L0,9 z" fill="#4aa8ff"/>
+          </marker>
+        </defs>
+
+        <!-- lifelines -->
+        <!-- x centers: 90, 340, 590, 860 -->
+        <g font-family="var(--mono)">
+          <rect x="20" y="18" width="140" height="36" rx="8" fill="#101a26" stroke="#1e2a3a"/>
+          <text x="90" y="41" text-anchor="middle" class="svg-t" font-size="13" font-weight="700">Grendel</text>
+
+          <rect x="270" y="18" width="140" height="36" rx="8" fill="#101a26" stroke="#1e2a3a"/>
+          <text x="340" y="41" text-anchor="middle" class="svg-t" font-size="13" font-weight="700">Hedef agent</text>
+
+          <rect x="520" y="18" width="140" height="36" rx="8" fill="#1a0f14" stroke="#3a1720"/>
+          <text x="590" y="41" text-anchor="middle" class="svg-t" font-size="13" font-weight="700" fill="#a879ff">LLM Judge</text>
+
+          <rect x="790" y="18" width="140" height="36" rx="8" fill="#0f261f" stroke="#1c5a45"/>
+          <text x="860" y="41" text-anchor="middle" class="svg-t" font-size="13" font-weight="700" fill="#38d39f">Rapor</text>
+        </g>
+        <line x1="90"  y1="54" x2="90"  y2="310" stroke="#1e2a3a" stroke-dasharray="3 4"/>
+        <line x1="340" y1="54" x2="340" y2="310" stroke="#1e2a3a" stroke-dasharray="3 4"/>
+        <line x1="590" y1="54" x2="590" y2="310" stroke="#1e2a3a" stroke-dasharray="3 4"/>
+        <line x1="860" y1="54" x2="860" y2="310" stroke="#1e2a3a" stroke-dasharray="3 4"/>
+
+        <!-- messages -->
+        <line x1="90" y1="86" x2="336" y2="86" stroke="#8b9bb0" stroke-width="1.6" marker-end="url(#arrow2)"/>
+        <text x="95" y="79" class="svg-m" font-size="11.5" fill="#cdd9e5">1 · saldırı payload'ı gönder</text>
+
+        <line x1="340" y1="128" x2="94" y2="128" stroke="#8b9bb0" stroke-width="1.6" marker-end="url(#arrow2)" stroke-dasharray="5 3"/>
+        <text x="105" y="121" class="svg-m" font-size="11.5" fill="#8b9bb0">2 · yanıt + gözlenen tool çağrıları</text>
+
+        <!-- self scoring -->
+        <path d="M90,158 h48 v22 h-44" fill="none" stroke="#4aa8ff" stroke-width="1.6" marker-end="url(#arrowR)"/>
+        <text x="150" y="164" class="svg-m" font-size="11.5" fill="#4aa8ff">3 · string/side-effect denetle</text>
+
+        <line x1="90" y1="212" x2="586" y2="212" stroke="#a879ff" stroke-width="1.6" marker-end="url(#arrow2)"/>
+        <text x="95" y="205" class="svg-m" font-size="11.5" fill="#a879ff">4 · tartışmalıysa → yargıca sor (rubric)</text>
+
+        <line x1="590" y1="250" x2="94" y2="250" stroke="#a879ff" stroke-width="1.6" marker-end="url(#arrow2)" stroke-dasharray="5 3"/>
+        <text x="150" y="243" class="svg-m" font-size="11.5" fill="#a879ff">5 · oy: attack_succeeded / defended</text>
+
+        <line x1="90" y1="292" x2="856" y2="292" stroke="#38d39f" stroke-width="1.6" marker-end="url(#arrow2)"/>
+        <text x="95" y="285" class="svg-m" font-size="11.5" fill="#38d39f">6 · sonucu + payload'ı + gerekçeyi kaydet</text>
+      </svg>
+      <p class="cap">// düz model hedefinde adım 4-5 çoğu zaman atlanır; agent hedefinde side-effect denetimi (adım 3) belirleyicidir</p>
+    </div>
+  </section>
+
+  <!-- TERMINAL: how easy -->
+  <section>
+    <h2><span class="n">05</span> — Ne kadar kolay?</h2>
+    <p class="lead">Kod yok. Sadece bağlantı bilgisi.</p>
+
+    <div class="term">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">deniz@laptop — grendel</span></div>
+<pre><span class="c-dim"># 1) hedef ekle — model de olur, agent de (sağlayıcı fark etmez)</span>
+<span class="c-cmd">$ grendel config</span>
+<span class="c-q">?</span> Ne eklemek istersin?      <span class="c-warn">› Agent hedefi (HTTP)</span>
+<span class="c-q">?</span> İsim                       <span class="c-ok">support-bot</span>
+<span class="c-q">?</span> Endpoint (base_url)        <span class="c-ok">https://api.acme.dev/agent</span>
+<span class="c-q">?</span> Auth header / env-var      <span class="c-ok">Authorization: $ACME_KEY</span>
+<span class="c-q">?</span> Model / rota               <span class="c-ok">support-v3</span>
+<span class="c-ok">✓</span> hedef 'support-bot' kaydedildi <span class="c-dim">(hiçbir sağlayıcı hardcode değil)</span>
+
+<span class="c-dim"># 2) saldırıları ateşle</span>
+<span class="c-cmd">$ grendel run</span> <span class="c-flag">--target</span> support-bot <span class="c-flag">--pack</span> prompt-injection,tool-abuse
+
+  <span class="c-ok">████████████████</span><span class="c-bad">██████</span><span class="c-dim">░░░░</span>  132/160   ASR <span class="c-bad">18.9%</span>
+  prompt-injection   <span class="c-ok">savundu 40</span>  <span class="c-bad">geçti 6</span>
+  tool-abuse         <span class="c-ok">savundu 28</span>  <span class="c-bad">geçti 12</span>  <span class="c-warn">⚠ side-effect</span>
+
+<span class="c-bad">✗</span> confused-deputy-02  →  <span class="c-warn">send_email() onaysız çağrıldı</span>
+  <span class="c-dim">repro:</span> <span class="c-cmd">grendel run --only confused-deputy-02 --replay</span>
+
+<span class="c-dim"># 3) raporu al</span>
+<span class="c-cmd">$ grendel report</span> <span class="c-flag">--html</span> out.html <span class="c-flag">--fail-under</span> 90
+<span class="c-ok">✓</span> rapor yazıldı · <span class="c-bad">gate FAIL</span> (skor 81 &lt; 90) → CI exit 1</pre>
+    </div>
+  </section>
+
+  <!-- REPORT MOCK -->
+  <section>
+    <h2><span class="n">06</span> — Çıktı: notlanmış rapor</h2>
+    <p class="lead">Evet — her koşu sonunda rapor çıkar</p>
+
+    <div class="report">
+      <div class="rhead">
+        <div class="l">grendel report · support-bot · 160 saldırı</div>
+        <div class="asr"><span class="v">18.9%</span><span class="k">ASR (attack success rate)</span></div>
+      </div>
+      <div class="rows">
+        <div class="row"><span class="cat">jailbreak</span><span class="bar"><i class="g-fill" style="width:92%"></i></span><span class="pct" style="color:var(--green)">92%</span></div>
+        <div class="row"><span class="cat">prompt-injection</span><span class="bar"><i class="a-fill" style="width:87%"></i></span><span class="pct" style="color:var(--amber)">87%</span></div>
+        <div class="row"><span class="cat">tool-abuse</span><span class="bar"><i class="r-fill" style="width:70%"></i></span><span class="pct" style="color:var(--red)">70%</span></div>
+        <div class="row"><span class="cat">mcp</span><span class="bar"><i class="g-fill" style="width:95%"></i></span><span class="pct" style="color:var(--green)">95%</span></div>
+      </div>
+      <div class="rfoot">
+        <span class="chip">savunma skoru: <b>81 / 100</b></span>
+        <span class="chip">en zayıf: <b>tool-abuse</b></span>
+        <span class="chip">OWASP: <b>LLM01, LLM06</b></span>
+        <span class="chip">MITRE ATLAS eşlemeli</span>
+        <span class="chip">tek-tuş <b>repro</b> · <b>score-diff</b> · HTML+MD</span>
+      </div>
+    </div>
+    <p class="cap">// yeşil = savundu · kırmızı = geçti (yüzde savunma oranı). Her hücreden kırılan tam payload'a ve gerekçeye drill-down.</p>
+  </section>
+
+  <footer>
+    <span>Grendel — yetkili, savunma amaçlı agent red-teaming. Kendi agent'ını test et.</span>
+    <span>user-story.html · v1</span>
+  </footer>
+
+</div>
+</body>
+</html>

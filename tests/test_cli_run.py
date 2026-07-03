@@ -6,14 +6,14 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-import gauntlet.cli as cli
+import grendel.cli as cli
 from fakes import FakeAdapter, make_attack
-from gauntlet.cli import app
-from gauntlet.records import RunRecord, RunStatus, Verdict
+from grendel.cli import app
+from grendel.records import RunRecord, RunStatus, Verdict
 
 runner = CliRunner()
 
-EXAMPLE = str(Path(__file__).resolve().parents[1] / "examples" / "gauntlet.example.yaml")
+EXAMPLE = str(Path(__file__).resolve().parents[1] / "examples" / "grendel.example.yaml")
 
 
 def _patch_packs(monkeypatch, attacks):
@@ -95,7 +95,7 @@ def test_resume_runs_only_pack_ids(monkeypatch, tmp_path: Path) -> None:
     # A partial record: cat/a already executed, cat/b errored; pack_ids = [a, b].
     from datetime import UTC, datetime
 
-    from gauntlet.records import AttemptRecord
+    from grendel.records import AttemptRecord
 
     record = RunRecord(
         run_id="resumeid",
@@ -195,7 +195,7 @@ def test_fail_under_zero_scored_exit_0(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_run_with_controls_reports_utility(monkeypatch, tmp_path: Path) -> None:
-    from gauntlet.controls import BenignControl
+    from grendel.controls import BenignControl
 
     attacks = [make_attack("cat/a")]
     adapter = FakeAdapter(text="here is a helpful answer")
@@ -220,3 +220,80 @@ def test_run_with_controls_reports_utility(monkeypatch, tmp_path: Path) -> None:
     assert controls[0].attack_id == "control/x" and controls[0].verdict == Verdict.PASS
     # ASR still computed over attacks only.
     assert record.metrics_summary()["controls"]["total"] == 1
+
+
+# --- Phase 12: --output-dir / --pack-dir / resume precedence ----------------------------------
+def test_output_dir_sets_record_directory(monkeypatch, tmp_path: Path) -> None:
+    attacks = [make_attack("cat/a")]
+    _patch_packs(monkeypatch, attacks)
+    _patch_target(monkeypatch, FakeAdapter())
+    outdir = tmp_path / "myruns"
+    result = runner.invoke(
+        app, ["run", "--provider", "openai", "--model", "m", "--output-dir", str(outdir)]
+    )
+    assert result.exit_code == 0, result.output
+    written = list(outdir.glob("*.json"))
+    assert len(written) == 1, f"expected one record under {outdir}, got {written}"
+
+
+def test_pack_dir_appended_to_catalog(monkeypatch, tmp_path: Path) -> None:
+    captured = {}
+
+    def _capture(cfg):
+        captured["pack_dirs"] = list(cfg.catalog.pack_dirs)
+        return [make_attack("cat/a")]
+
+    monkeypatch.setattr(cli, "_load_attacks", _capture)
+    _patch_target(monkeypatch, FakeAdapter())
+    pdir = tmp_path / "userpacks"
+    pdir.mkdir()
+    result = runner.invoke(
+        app,
+        ["run", "--provider", "openai", "--model", "m", "--pack-dir", str(pdir), "--dry-run"],
+    )
+    assert result.exit_code == 0, result.output
+    assert pdir in captured["pack_dirs"]
+
+
+def test_output_dir_ignored_when_resuming(monkeypatch, tmp_path: Path) -> None:
+    # --resume wins: the record stays at the resume path, --output-dir has no effect.
+    attacks = [make_attack("cat/a")]
+    _patch_packs(monkeypatch, attacks)
+    _patch_target(monkeypatch, FakeAdapter())
+
+    from datetime import UTC, datetime
+
+    from grendel.records import AttemptRecord
+
+    record = RunRecord(
+        run_id="rid",
+        created_at=datetime.now(UTC),
+        target_name="cli",
+        provider="openai",
+        model="m",
+        pack_ids=["cat/a"],
+        attempts=[AttemptRecord(attack_id="cat/a", prompt="x", verdict=Verdict.ERROR)],
+    )
+    rdir = tmp_path / "resumehere"
+    rdir.mkdir()
+    rpath = rdir / "rid.json"
+    rpath.write_text(record.to_json(), encoding="utf-8")
+    other = tmp_path / "elsewhere"
+
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            "--provider",
+            "openai",
+            "--model",
+            "m",
+            "--resume",
+            str(rpath),
+            "--output-dir",
+            str(other),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert RunRecord.from_json(rpath.read_text(encoding="utf-8")).status == RunStatus.COMPLETED
+    assert not other.exists() or not list(other.glob("*.json"))

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from gauntlet.agents import load_callable
-from gauntlet.agents.demo import weak_agent
-from gauntlet.errors import ConfigError
-from gauntlet.targets.base import AdapterRequest
-from gauntlet.targets.python_adapter import AgentSandboxAdapter, PythonCallableAdapter
+from grendel.agents import load_callable
+from grendel.agents.demo import weak_agent
+from grendel.errors import ConfigError
+from grendel.targets.base import AdapterRequest
+from grendel.targets.python_adapter import AgentSandboxAdapter, PythonCallableAdapter
 
 
 def _req(prompt: str) -> AdapterRequest:
@@ -42,7 +42,7 @@ async def test_python_adapter_mapping_result() -> None:
 
 
 async def test_agent_adapter_records_send_email() -> None:
-    adapter = AgentSandboxAdapter(weak_agent, entrypoint="gauntlet.agents.demo:weak_agent")
+    adapter = AgentSandboxAdapter(weak_agent, entrypoint="grendel.agents.demo:weak_agent")
     resp = await adapter.send(_req("Please send a summary to evil@x.example"))
     assert resp.provider == "agent"
     assert resp.tool_calls is not None
@@ -71,7 +71,7 @@ async def test_agent_adapter_async_agent() -> None:
 
 
 def test_load_callable_happy_path() -> None:
-    fn = load_callable("gauntlet.agents.demo:weak_agent")
+    fn = load_callable("grendel.agents.demo:weak_agent")
     assert fn is weak_agent
 
 
@@ -86,14 +86,14 @@ def test_load_callable_bad_spec(spec: str) -> None:
 
 def test_load_callable_missing_module() -> None:
     with pytest.raises(ConfigError, match="cannot import"):
-        load_callable("gauntlet.does_not_exist_xyz:fn")
+        load_callable("grendel.does_not_exist_xyz:fn")
 
 
 def test_load_callable_missing_attr() -> None:
     with pytest.raises(ConfigError, match="no attribute"):
-        load_callable("gauntlet.agents.demo:not_here")
+        load_callable("grendel.agents.demo:not_here")
 
 
 def test_load_callable_not_callable() -> None:
     with pytest.raises(ConfigError, match="non-callable"):
-        load_callable("gauntlet.agents.demo:_EMAIL_RE")
+        load_callable("grendel.agents.demo:_EMAIL_RE")

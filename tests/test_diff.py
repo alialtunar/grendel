@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
-from gauntlet.diff import diff_runs, render_markdown, render_text
-from gauntlet.records import AttemptRecord, RunRecord, Verdict
+from grendel.diff import diff_runs, render_markdown, render_text
+from grendel.records import AttemptRecord, RunRecord, Verdict
 
 
 def _record(run_id: str, attempts: list[AttemptRecord]) -> RunRecord:

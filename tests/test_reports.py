@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from gauntlet.records import AttemptRecord, RunRecord, RunStatus, ScoreDetail, Verdict
-from gauntlet.reports import render_html, render_markdown
+from grendel.records import AttemptRecord, RunRecord, RunStatus, ScoreDetail, Verdict
+from grendel.reports import render_html, render_markdown
 
 # A payload that is adversarial for BOTH renderers: triple-backticks (breaks MD fences)
 # and HTML metacharacters (breaks HTML).

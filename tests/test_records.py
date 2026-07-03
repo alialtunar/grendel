@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 
-from gauntlet.config import GauntletConfig, TargetConfig
-from gauntlet.records import (
+from grendel.config import GrendelConfig, TargetConfig
+from grendel.records import (
     AttemptRecord,
     RunRecord,
     TokenUsage,
@@ -19,7 +19,7 @@ def _record_with(attempts: list[AttemptRecord]) -> RunRecord:
         target_name="gpt",
         provider="openai",
         model="gpt-4o-mini",
-        config=GauntletConfig(),
+        config=GrendelConfig(),
         attempts=attempts,
     )
 
@@ -75,7 +75,7 @@ def test_token_usage_total() -> None:
 
 def test_config_snapshot_no_secret(monkeypatch) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
-    cfg = GauntletConfig(targets={"gpt": TargetConfig(provider="openai", model="gpt-4o-mini")})
+    cfg = GrendelConfig(targets={"gpt": TargetConfig(provider="openai", model="gpt-4o-mini")})
     rec = make_run_record(
         target_name="gpt",
         provider="openai",

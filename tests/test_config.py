@@ -6,20 +6,20 @@ from pathlib import Path
 
 import pytest
 
-from gauntlet.config import GauntletConfig, load_config
-from gauntlet.errors import ConfigError
+from grendel.config import GrendelConfig, load_config
+from grendel.errors import ConfigError
 
 
 def test_example_config_loads(example_config_path: Path) -> None:
     cfg = load_config(example_config_path)
-    assert isinstance(cfg, GauntletConfig)
+    assert isinstance(cfg, GrendelConfig)
     assert "gpt" in cfg.targets
     assert cfg.targets["gpt"].provider == "openai"
     assert "my-local" in cfg.providers
 
 
 def test_defaults_applied() -> None:
-    cfg = GauntletConfig()
+    cfg = GrendelConfig()
     assert cfg.version == 1
     assert cfg.log.level == "INFO"
     assert cfg.log.format == "text"
@@ -63,7 +63,7 @@ def test_missing_file_raises() -> None:
 
 
 def test_catalog_defaults_empty() -> None:
-    cfg = GauntletConfig()
+    cfg = GrendelConfig()
     assert cfg.catalog.pack_dirs == []
     assert cfg.catalog.feed_cache_dir is None
     assert cfg.catalog.feeds == []
@@ -102,3 +102,56 @@ def test_feed_source_empty_name_rejected(write_config) -> None:
     text = "catalog:\n  feeds:\n    - name: ''\n      url: https://x.test/m\n"
     with pytest.raises(ConfigError):
         load_config(write_config(text))
+
+
+# --- Phase 12: ProxyConfig + with_cli_target --------------------------------------------------
+from pydantic import ValidationError  # noqa: E402
+
+from grendel.config import ProxyConfig, TargetConfig  # noqa: E402
+
+
+def test_proxy_config_defaults() -> None:
+    p = ProxyConfig()
+    assert p.host == "127.0.0.1" and p.port == 8100 and p.routes == {}
+
+
+def test_proxy_config_port_range() -> None:
+    with pytest.raises(ValidationError):
+        ProxyConfig(port=0)
+    with pytest.raises(ValidationError):
+        ProxyConfig(port=70000)
+
+
+def test_proxy_config_route_must_start_with_slash() -> None:
+    with pytest.raises(ValidationError):
+        ProxyConfig(routes={"openai": "openai"})
+
+
+def test_grendel_config_has_default_proxy() -> None:
+    assert GrendelConfig().proxy == ProxyConfig()
+
+
+def test_with_cli_target_injects_and_revalidates() -> None:
+    cfg = GrendelConfig.model_validate({"catalog": {"pack_dirs": ["/abs/packs"]}})
+    t = TargetConfig(type="http", provider="openai", model="gpt-4o-mini")
+    out = cfg.with_cli_target("cli", t)
+    assert out.targets["cli"].provider == "openai"
+    # Path survives the round-trip unchanged.
+    assert out.catalog.pack_dirs == cfg.catalog.pack_dirs
+    assert isinstance(out.catalog.pack_dirs[0], Path)
+
+
+def test_with_cli_target_unknown_provider_raises_configerror() -> None:
+    cfg = GrendelConfig()
+    t = TargetConfig(type="http", provider="nope", model="m")
+    # ConfigError (not ValidationError) must propagate from the validator.
+    with pytest.raises(ConfigError):
+        cfg.with_cli_target("cli", t)
+
+
+def test_with_cli_target_duplicate_name_raises() -> None:
+    cfg = GrendelConfig.model_validate(
+        {"targets": {"cli": {"type": "http", "provider": "openai", "model": "m"}}}
+    )
+    with pytest.raises(ConfigError, match="already exists"):
+        cfg.with_cli_target("cli", TargetConfig(type="python", entrypoint="m:f"))

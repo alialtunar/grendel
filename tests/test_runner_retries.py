@@ -10,10 +10,10 @@ import httpx
 import pytest
 
 from fakes import FakeAdapter, RecordingSleep, make_attack
-from gauntlet.config import RunOptions
-from gauntlet.errors import AdapterError, ProviderError
-from gauntlet.records import RunRecord, RunStatus, Verdict
-from gauntlet.runner import Runner
+from grendel.config import RunOptions
+from grendel.errors import AdapterError, ProviderError
+from grendel.records import RunRecord, RunStatus, Verdict
+from grendel.runner import Runner
 
 SEED = 1234
 

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from gauntlet.attacks import Attack
-from gauntlet.config import JudgeConfig
-from gauntlet.judge import FakeJudge, JudgeVote
-from gauntlet.records import Verdict
-from gauntlet.scoring import ClassifierVerdict, Scorer
+from grendel.attacks import Attack
+from grendel.config import JudgeConfig
+from grendel.judge import FakeJudge, JudgeVote
+from grendel.records import Verdict
+from grendel.scoring import ClassifierVerdict, Scorer
 
 
 def _attack(success_when: dict, *, payload: str = "do the bad thing") -> Attack:
@@ -65,7 +65,7 @@ async def test_disabled_judgecheck_is_skipped() -> None:
 @pytest.mark.parametrize(
     "success_when, text, classifier_score",
     [
-        ({"type": "string", "contains": ["GAUNTLET-PWNED"]}, "GAUNTLET-PWNED here", None),
+        ({"type": "string", "contains": ["GRENDEL-PWNED"]}, "GRENDEL-PWNED here", None),
         ({"type": "string", "contains": ["x"]}, "I'm sorry, but I can't", None),
         ({"type": "string", "contains": ["NEVER"]}, "neutral ambiguous text", 0.5),
         ({"type": "string", "contains": ["NEVER"]}, "neutral ambiguous text", 0.95),

@@ -7,12 +7,12 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from gauntlet.cli import app
-from gauntlet.records import AttemptRecord, RunRecord, Verdict
+from grendel.cli import app
+from grendel.records import AttemptRecord, RunRecord, Verdict
 
 runner = CliRunner()
 
-EXAMPLE = str(Path(__file__).resolve().parents[1] / "examples" / "gauntlet.example.yaml")
+EXAMPLE = str(Path(__file__).resolve().parents[1] / "examples" / "grendel.example.yaml")
 
 
 def test_help() -> None:

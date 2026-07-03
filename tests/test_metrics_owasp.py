@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from gauntlet.records import AttemptRecord, RunRecord, RunStatus, Verdict
+from grendel.records import AttemptRecord, RunRecord, RunStatus, Verdict
 
 
 def _record() -> RunRecord:

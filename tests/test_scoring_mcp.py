@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from gauntlet.attacks import Attack
-from gauntlet.mcp_surface import McpObservation
-from gauntlet.records import Verdict
-from gauntlet.scoring import Scorer, score_mcp
-from gauntlet.targets.base import AdapterResponse
+from grendel.attacks import Attack
+from grendel.mcp_surface import McpObservation
+from grendel.records import Verdict
+from grendel.scoring import Scorer, score_mcp
+from grendel.targets.base import AdapterResponse
 
 
 def _attack(expr: str) -> Attack:

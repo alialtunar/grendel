@@ -3,23 +3,41 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "gauntlet"
+# PyPI/install name ("grendel" is taken on PyPI); the command + import name stay `grendel`.
+name = "grendel-redteam"
 version = "0.1.0"
 description = "Red-team your AI agents: a CLI that fires authorized attacks at LLM and agent targets."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
+authors = [{ name = "Ali", email = "alialtunarworkacc@gmail.com" }]
+keywords = ["red-team", "llm", "security", "jailbreak", "prompt-injection", "ai-safety", "cli"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+]
 dependencies = [
     "typer>=0.16",
+    "click>=8",  # imported directly (click.pause/clear); modern typer no longer hard-depends on it
     "pydantic>=2",
     "httpx>=0.27",
     "pyyaml>=6",
-    "textual>=0.80",
+    "questionary>=2",
+    "rich>=13",  # live attack dashboard (imported directly; was transitive via typer)
 ]
 
 [project.optional-dependencies]
 mcp = [
     "mcp>=1.0",
+]
+corpora = [
+    "garak",  # `grendel import --source garak` auto-discovers garak's bundled corpora
 ]
 dev = [
     "ruff>=0.9",
@@ -27,12 +45,18 @@ dev = [
     "pytest-asyncio>=0.21,<1",
 ]
 
+[project.urls]
+# TODO(release): replace USERNAME with the real GitHub account before publishing.
+Homepage = "https://github.com/USERNAME/grendel"
+Repository = "https://github.com/USERNAME/grendel"
+Issues = "https://github.com/USERNAME/grendel/issues"
+
 [project.scripts]
-gauntlet = "gauntlet.cli:app"
+grendel = "grendel.cli:app"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/gauntlet"]
-artifacts = ["src/gauntlet/packs/**/*.yaml"]
+packages = ["src/grendel"]
+artifacts = ["src/grendel/packs/**/*.yaml"]
 
 [tool.ruff]
 line-length = 100

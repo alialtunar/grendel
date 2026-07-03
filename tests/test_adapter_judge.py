@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fakes import FakeAdapter
-from gauntlet.judge import RUBRIC_V1, AdapterJudge
+from grendel.judge import RUBRIC_V1, AdapterJudge
 
 
 async def _vote(reply: str):

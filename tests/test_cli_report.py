@@ -1,4 +1,4 @@
-"""M5: gauntlet report prints overall ASR + by-category; json adds the metrics block."""
+"""M5: grendel report prints overall ASR + by-category; json adds the metrics block."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from gauntlet.cli import app
-from gauntlet.records import AttemptRecord, RunRecord, RunStatus, Verdict
+from grendel.cli import app
+from grendel.records import AttemptRecord, RunRecord, RunStatus, Verdict
 
 runner = CliRunner()
 
@@ -38,6 +38,18 @@ def _record_file(tmp_path: Path) -> Path:
     path = tmp_path / "rep1.json"
     path.write_text(rec.to_json(), encoding="utf-8")
     return path
+
+
+def test_render_text_is_the_single_source(tmp_path: Path) -> None:
+    # The report command's text body now comes from reports.render_text (shared with the menu).
+    from grendel import reports
+    from grendel.records import RunRecord
+
+    rec = RunRecord.from_json(_record_file(tmp_path).read_text(encoding="utf-8"))
+    text = reports.render_text(rec)
+    assert "Run rep1" in text
+    assert "ASR (overall): 66.67%" in text
+    assert "by category:" in text and "by OWASP:" in text and "by ATLAS:" in text
 
 
 def test_report_text_prints_asr_and_categories(tmp_path: Path) -> None:
@@ -107,7 +119,7 @@ def test_report_md_prints_and_out_roundtrip(tmp_path: Path) -> None:
     path = _record_file(tmp_path)
     stdout = runner.invoke(app, ["report", "--run", str(path), "--format", "md"])
     assert stdout.exit_code == 0, stdout.output
-    assert "# Gauntlet report" in stdout.output
+    assert "# Grendel report" in stdout.output
 
     out = tmp_path / "rep.md"
     written = runner.invoke(

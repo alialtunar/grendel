@@ -5,15 +5,15 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from gauntlet.agents.mcp_demo import FakeMcpClient
-from gauntlet.mcp_surface import (
+from grendel.agents.mcp_demo import FakeMcpClient
+from grendel.mcp_surface import (
     McpObservation,
     McpToolDescriptor,
     descriptions_of,
     fingerprint_schema,
 )
-from gauntlet.targets.base import AdapterRequest
-from gauntlet.targets.mcp_adapter import MCPTargetAdapter
+from grendel.targets.base import AdapterRequest
+from grendel.targets.mcp_adapter import MCPTargetAdapter
 
 
 def test_descriptor_round_trip_and_defaults() -> None:

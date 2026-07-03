@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
-from gauntlet.attacks import Attack
-from gauntlet.targets.base import AdapterRequest, AdapterResponse, TargetAdapter
+from grendel.attacks import Attack
+from grendel.targets.base import AdapterRequest, AdapterResponse, TargetAdapter
 
 
 def make_attack(

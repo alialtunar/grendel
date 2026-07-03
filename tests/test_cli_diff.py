@@ -1,4 +1,4 @@
-"""M2: the `gauntlet diff` CLI surface (text/json/md, --out, missing file -> exit 2)."""
+"""M2: the `grendel diff` CLI surface (text/json/md, --out, missing file -> exit 2)."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from gauntlet.cli import app
-from gauntlet.records import AttemptRecord, RunRecord, Verdict
+from grendel.cli import app
+from grendel.records import AttemptRecord, RunRecord, Verdict
 
 runner = CliRunner()
 

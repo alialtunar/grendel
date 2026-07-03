@@ -233,6 +233,65 @@ in Python — the ecosystem advantage is decisive.
     over time (regression tracking), HTML + Markdown reports, a VHS-recorded demo GIF,
     and a strong README with the authorized-use framing. The release-ready cut.
 
+### Follow-on phases (post-1.0)
+
+11. **Rename to Grendel + first-class terminal TUI** — rebrand `gauntlet` → **`grendel`**
+    (package, CLI command, docs, canary token) and elevate the Phase-5 Textual scoreboard into
+    the hero terminal experience: live pass/fail grid, colored ASR, a live attack stream
+    (send → score animation), tool-call visualization, failure-detail pane, hotkeys — all in
+    the terminal, no web UI.
+
+12. **Everything configurable from the terminal** — run the whole tool with **no config file**:
+    select/connect a target from flags (`--model`/`--agent`/`--python`/`--mcp-*`), and set proxy
+    host/port/routes, output dirs, and import dirs from the CLI. Config files become optional.
+
+13. **LLM-proxy — zero-touch agent testing** — an OpenAI-compatible endpoint the user's agent
+    points its `base_url` at (one setting, no code, no extra API). Grendel injects the attack into
+    the passing prompt and reads the model's returned `tool_calls` (tool *intent*). Multi-provider
+    routing (openai/anthropic/openrouter) by path; forwards the agent's own key. The core
+    "test a real agent without any development" capability.
+
+14. **Open-corpus import — catalog enrichment** — one terminal command that pulls attacks from
+    public red-team corpora (garak first, Apache-2.0: ~666 in-the-wild + 14 DAN ≈ **~680**),
+    converts each to a validated `Attack` YAML, license-gates + de-duplicates, writes them into a
+    catalog dir. Re-runnable/incremental (only new payloads added). *(Proven feasible: real garak
+    jailbreaks converted + loaded through the real packloader.)*
+
+15. **Control-center TUI — the whole tool from one terminal screen** — `grendel tui` opens a Textual
+    control center: a home menu that drives **every** operation without memorizing commands — launch
+    a **run** (pick target + packs → the live Phase-5/11 scoreboard), **configure** everything
+    (targets, proxy routes, judge, run options) and save to the config file, browse the **catalog**
+    and **import** corpora, configure + start the **proxy**, and open past-run **reports/diff**, plus
+    a **doctor** status view (env keys, catalog counts, version — the "welcome" panel). It *wraps* the
+    existing engines (ScoreboardApp, import_corpus, ProxySession, reports/diff, config models) — no
+    new engine, a first-class "open-and-use" UX over what phases 1–14 already built. The plain CLI
+    commands keep working unchanged; the TUI is an additive layer.
+    *(Superseded by the post-15 pivot: the full-screen TUI was removed in favour of a pure inline
+    CLI with a branded banner + interactive `grendel config`. See PROGRESS.md.)*
+
+16. **Easy-to-use CLI + logo + editable targets + LangGraph end-to-end** — a logo + first-run UX,
+    add/remove-editable targets in `grendel config`, a LangGraph demo agent, and a real end-to-end
+    validation against the OpenAI API (found+fixed a proxy bug, added crash-safe incremental
+    persistence). Then open-corpus enrichment matured: `grendel import --source garak` auto-discovers
+    and pulls garak's jailbreak/DAN/harmbench/toxicity corpora (~1500 attacks), incremental + deduped.
+
+17. **Completeness & UX polish** — close the remaining gaps so a newcomer can use everything without
+    friction: `config` in the landing banner; **provider/type as arrow-key selects** and **catalog
+    dir add/remove** in `grendel config`; cwd `grendel.yaml` **auto-discovery** (so `list`/`run` see
+    the configured catalog without `-c`); `list --packs --category` filtering + a `grendel doctor`
+    status view (version, catalog counts, env keys, targets); hygiene (gitignore the imported catalog,
+    a fast import test, `garak` documented as an optional dep) and refreshed README/PROGRESS.
+
+18. **Interactive home menu + self-explanatory setup** — typing bare `grendel` on a terminal opens
+    an **arrow-key home menu** that is the primary way to manage and operate the tool (targets, API
+    keys, run, import, doctor) — no need to remember subcommands (pipe/CI still get the banner; every
+    subcommand unchanged). Adding a target is **self-explanatory**: each type/provider choice explains
+    what it is and what request will be made (http → a POST to the model's chat-completions endpoint;
+    python/agent → an in-process call to your `module:attr`), and a **confirmation summary** shows the
+    resolved endpoint/behavior before saving. **API-key management** from the menu: per-provider ✓/✗
+    status, a guided way to set the env var, and an **opt-in** save to a **gitignored** local secrets
+    file (never committed) so you don't re-`export` each session.
+
 ---
 
 ## 9. What the user needs to provide

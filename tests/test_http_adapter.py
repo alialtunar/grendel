@@ -5,10 +5,10 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from gauntlet.config import GauntletConfig, TargetConfig
-from gauntlet.errors import AdapterError, ProviderError
-from gauntlet.targets import build_target
-from gauntlet.targets.base import AdapterRequest
+from grendel.config import GrendelConfig, TargetConfig
+from grendel.errors import AdapterError, ProviderError
+from grendel.targets import build_target
+from grendel.targets.base import AdapterRequest
 
 
 def _handler(request: httpx.Request) -> httpx.Response:
@@ -52,7 +52,7 @@ def _mock_client() -> httpx.AsyncClient:
 
 async def test_openai_style(monkeypatch) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "sk-dummy")
-    cfg = GauntletConfig(targets={"t": TargetConfig(provider="openai", model="gpt-4o-mini")})
+    cfg = GrendelConfig(targets={"t": TargetConfig(provider="openai", model="gpt-4o-mini")})
     async with _mock_client() as client:
         adapter = build_target("t", cfg, client=client)
         resp = await adapter.send(AdapterRequest(prompt="hi"))
@@ -65,7 +65,7 @@ async def test_openai_style(monkeypatch) -> None:
 
 async def test_anthropic_style(monkeypatch) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-dummy")
-    cfg = GauntletConfig(targets={"t": TargetConfig(provider="anthropic", model="claude-x")})
+    cfg = GrendelConfig(targets={"t": TargetConfig(provider="anthropic", model="claude-x")})
     async with _mock_client() as client:
         adapter = build_target("t", cfg, client=client)
         resp = await adapter.send(AdapterRequest(prompt="hi", system="be safe"))
@@ -76,7 +76,7 @@ async def test_anthropic_style(monkeypatch) -> None:
 
 
 async def test_ollama_style() -> None:
-    cfg = GauntletConfig(targets={"t": TargetConfig(provider="ollama", model="llama3")})
+    cfg = GrendelConfig(targets={"t": TargetConfig(provider="ollama", model="llama3")})
     async with _mock_client() as client:
         adapter = build_target("t", cfg, client=client)
         resp = await adapter.send(AdapterRequest(prompt="hi"))
@@ -88,7 +88,7 @@ async def test_ollama_style() -> None:
 
 async def test_non_2xx_raises_adapter_error(monkeypatch) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "sk-dummy")
-    cfg = GauntletConfig(
+    cfg = GrendelConfig(
         targets={
             "t": TargetConfig(
                 provider="openai",
@@ -109,7 +109,7 @@ async def test_non_2xx_raises_adapter_error(monkeypatch) -> None:
 
 async def test_missing_key_raises_provider_error(monkeypatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    cfg = GauntletConfig(targets={"t": TargetConfig(provider="openai", model="gpt-4o-mini")})
+    cfg = GrendelConfig(targets={"t": TargetConfig(provider="openai", model="gpt-4o-mini")})
     async with _mock_client() as client:
         adapter = build_target("t", cfg, client=client)
         with pytest.raises(ProviderError, match="API key"):
@@ -118,7 +118,7 @@ async def test_missing_key_raises_provider_error(monkeypatch) -> None:
 
 async def test_owns_created_client_closes(monkeypatch) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "sk-dummy")
-    cfg = GauntletConfig(targets={"t": TargetConfig(provider="openai", model="gpt-4o-mini")})
+    cfg = GrendelConfig(targets={"t": TargetConfig(provider="openai", model="gpt-4o-mini")})
     adapter = build_target("t", cfg)  # no client -> adapter owns one
     assert adapter._owns_client is True
     await adapter.aclose()

@@ -8,14 +8,14 @@ from pathlib import Path
 import httpx
 from typer.testing import CliRunner
 
-from gauntlet.cli import app
-from gauntlet.config import load_config
-from gauntlet.records import AttemptRecord, RunRecord, TokenUsage, Verdict, make_run_record
-from gauntlet.targets import build_target
-from gauntlet.targets.base import AdapterRequest
+from grendel.cli import app
+from grendel.config import load_config
+from grendel.records import AttemptRecord, RunRecord, TokenUsage, Verdict, make_run_record
+from grendel.targets import build_target
+from grendel.targets.base import AdapterRequest
 
 runner = CliRunner()
-EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "gauntlet.example.yaml"
+EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "grendel.example.yaml"
 
 
 def _handler(request: httpx.Request) -> httpx.Response:
@@ -129,7 +129,7 @@ def test_run_report_diff_offline(tmp_path: Path) -> None:
         == 0
     )
     assert html_out.read_text(encoding="utf-8").startswith("<!DOCTYPE html>")
-    assert "# Gauntlet report" in md_out.read_text(encoding="utf-8")
+    assert "# Grendel report" in md_out.read_text(encoding="utf-8")
 
     diff_res = runner.invoke(app, ["diff", str(a), str(b), "--format", "text"])
     assert diff_res.exit_code == 0

@@ -25,11 +25,11 @@ def test_readme_exists_with_authorized_use_framing() -> None:
 def test_readme_has_quickstart_commands() -> None:
     text = (ROOT / "README.md").read_text(encoding="utf-8")
     for cmd in (
-        "gauntlet list --packs",
-        "gauntlet run --target",
-        "gauntlet report",
-        "gauntlet diff",
-        "gauntlet update",
+        "grendel list --packs",
+        "grendel run --target",
+        "grendel report",
+        "grendel diff",
+        "grendel update",
         "--fail-under",
     ):
         assert cmd in text, cmd
@@ -38,10 +38,9 @@ def test_readme_has_quickstart_commands() -> None:
 
 
 def test_demo_tape_exists_with_commands_and_output() -> None:
-    tape = ROOT / "demo" / "gauntlet.tape"
+    tape = ROOT / "demo" / "grendel.tape"
     assert tape.exists()
     text = tape.read_text(encoding="utf-8")
     assert "Output" in text  # the VHS output directive
-    assert "gauntlet list --packs" in text
-    assert "gauntlet run" in text
-    assert "--tui" in text
+    assert "grendel list --packs" in text
+    assert "grendel run" in text

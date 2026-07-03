@@ -7,10 +7,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from fakes import FakeAdapter, ManualClock, RecordingSleep, make_attack
-from gauntlet.config import RunOptions
-from gauntlet.records import RunRecord, RunStatus, Verdict
-from gauntlet.runner import Runner
-from gauntlet.targets.base import AdapterRequest, AdapterResponse, TargetAdapter
+from grendel.config import RunOptions
+from grendel.records import RunRecord, RunStatus, Verdict
+from grendel.runner import Runner
+from grendel.targets.base import AdapterRequest, AdapterResponse, TargetAdapter
 
 
 def _record() -> RunRecord:

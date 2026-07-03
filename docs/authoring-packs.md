@@ -1,6 +1,6 @@
 # Authoring attack packs
 
-This guide shows how to add an attack to gauntlet as **pure YAML** — no code changes. An
+This guide shows how to add an attack to grendel as **pure YAML** — no code changes. An
 attack pack is a single YAML file describing one attack: where its payload is injected, how
 success is detected, and its OWASP/ATLAS mapping and license. The loader validates every
 field before an attack can run.
@@ -28,7 +28,7 @@ Each pack is one YAML document with these fields (all required unless noted):
 
 ### The id / category / stem coherence rule
 
-For a file at `src/gauntlet/packs/prompt-injection/direct-override-01.yaml`:
+For a file at `src/grendel/packs/prompt-injection/direct-override-01.yaml`:
 
 - `category` MUST be `prompt-injection` (the parent directory),
 - `id` MUST be `prompt-injection/direct-override-01` (`category/stem`).
@@ -46,7 +46,7 @@ A mismatch is a load error naming the file. This keeps ids unique and discoverab
 ```yaml
 success_when:
   type: string
-  contains: ["GAUNTLET-PWNED"]   # at least one of contains / pattern is required
+  contains: ["GRENDEL-PWNED"]   # at least one of contains / pattern is required
   pattern: "PWNED-\\d+"           # optional regex (validated at load)
   case_sensitive: false           # default false
   match: any                      # any | all (default any)
@@ -111,12 +111,12 @@ unless you opt in explicitly.
 There are three places a pack can live; all use the same `<category>/<stem>.yaml` layout
 and the same validation:
 
-1. **Bundled** — `src/gauntlet/packs/<category>/<stem>.yaml` (shipped with gauntlet;
+1. **Bundled** — `src/grendel/packs/<category>/<stem>.yaml` (shipped with grendel;
    `source=bundled`).
 2. **A user pack directory** — any directory listed under `catalog.pack_dirs`
-   (`source=user`). Recommended conventions: `./packs` (project) or `~/.gauntlet/packs`
+   (`source=user`). Recommended conventions: `./packs` (project) or `~/.grendel/packs`
    (user). These are explicit config, not auto-scanned, so runs stay reproducible.
-3. **A feed** — published in a feed manifest and pulled by `gauntlet update` into
+3. **A feed** — published in a feed manifest and pulled by `grendel update` into
    `catalog.feed_cache_dir` (`source=feed`). See §6.
 
 Example config:
@@ -125,7 +125,7 @@ Example config:
 catalog:
   pack_dirs:
     - ./packs
-  feed_cache_dir: ~/.gauntlet/feed-cache
+  feed_cache_dir: ~/.grendel/feed-cache
   feeds:
     - name: community
       url: https://feed.example/manifest.yaml
@@ -135,7 +135,7 @@ A duplicate `id` across sources is a load error by default; set
 `catalog.allow_override: true` to let a more-local source win (user > feed > bundled).
 
 A `staged_dir` is an optional landing zone: its packs load as `source=staged`,
-**armed=false** — they appear in `gauntlet list --packs --staged` but are never run until a
+**armed=false** — they appear in `grendel list --packs --staged` but are never run until a
 human moves the file into a real pack dir.
 
 ---
@@ -148,7 +148,7 @@ at its directory and list the catalog — any problem is reported as a `pack err
 file:
 
 ```
-gauntlet --config gauntlet.yaml list --packs
+grendel --config grendel.yaml list --packs
 ```
 
 A clean pack appears as a row tagged with its `[source]`, its OWASP/ATLAS codes, and its
@@ -162,7 +162,7 @@ A feed is a single manifest document (JSON or YAML) served at the feed `url`, pi
 pack's version, license, and SHA-256 checksum:
 
 ```yaml
-feed: gauntlet-community
+feed: grendel-community
 manifest_version: 1
 generated_at: "2026-06-01T00:00:00Z"   # optional, informational
 packs:
@@ -175,7 +175,7 @@ packs:
     size: 1234                            # optional, informational
 ```
 
-`gauntlet update` fetches the manifest, **license-gates each pack before download**,
+`grendel update` fetches the manifest, **license-gates each pack before download**,
 enforces a 1 MiB size cap, **verifies the SHA-256 checksum**, validates the pack content and
 checks it coheres with the manifest claim (id/category/license/version), then writes verified
 packs atomically into `feed_cache_dir/<category>/<stem>.yaml`. The cache path is always built

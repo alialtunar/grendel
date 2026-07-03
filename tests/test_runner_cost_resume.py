@@ -6,10 +6,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from fakes import FakeAdapter, make_attack
-from gauntlet.config import RunOptions
-from gauntlet.pricing import estimate_cost
-from gauntlet.records import AttemptRecord, RunRecord, RunStatus, TokenUsage, Verdict
-from gauntlet.runner import Runner
+from grendel.config import RunOptions
+from grendel.pricing import estimate_cost
+from grendel.records import AttemptRecord, RunRecord, RunStatus, TokenUsage, Verdict
+from grendel.runner import Runner
 
 
 def _record(provider: str = "fake", model: str = "fake-model") -> RunRecord:

@@ -7,9 +7,9 @@ import sys
 
 import pytest
 
-from gauntlet.errors import AdapterError
-from gauntlet.targets.base import AdapterRequest
-from gauntlet.targets.mcp_adapter import MCPTargetAdapter
+from grendel.errors import AdapterError
+from grendel.targets.base import AdapterRequest
+from grendel.targets.mcp_adapter import MCPTargetAdapter
 
 
 class FakeMCPClient:
@@ -38,16 +38,16 @@ async def test_send_with_injected_client() -> None:
     assert resp.tool_calls == [{"name": "send_email", "args": {"prompt": "hello"}, "ordinal": 0}]
 
 
-def test_import_gauntlet_does_not_import_mcp() -> None:
-    import gauntlet  # noqa: F401
-    import gauntlet.targets  # noqa: F401
-    import gauntlet.targets.mcp_adapter  # noqa: F401
+def test_import_grendel_does_not_import_mcp() -> None:
+    import grendel  # noqa: F401
+    import grendel.targets  # noqa: F401
+    import grendel.targets.mcp_adapter  # noqa: F401
 
     assert "mcp" not in sys.modules
 
 
 async def test_send_observes_rug_pull_mutation() -> None:
-    from gauntlet.agents.mcp_demo import FakeMcpClient
+    from grendel.agents.mcp_demo import FakeMcpClient
 
     client = FakeMcpClient(
         [{"name": "send_email", "description": "Send an email to a recipient."}],
@@ -65,5 +65,5 @@ async def test_send_observes_rug_pull_mutation() -> None:
 @pytest.mark.skipif(importlib.util.find_spec("mcp") is not None, reason="mcp installed")
 async def test_real_path_raises_when_mcp_absent() -> None:
     adapter = MCPTargetAdapter(client=None)
-    with pytest.raises(AdapterError, match="pip install gauntlet"):
+    with pytest.raises(AdapterError, match="pip install grendel"):
         await adapter.send(AdapterRequest(prompt="x"))

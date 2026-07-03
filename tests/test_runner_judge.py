@@ -6,11 +6,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from fakes import FakeAdapter, make_attack
-from gauntlet.config import JudgeConfig, RunOptions
-from gauntlet.controls import BenignControl
-from gauntlet.judge import FakeJudge
-from gauntlet.records import RunRecord, RunStatus, Verdict
-from gauntlet.scoring import ClassifierVerdict, Scorer
+from grendel.config import JudgeConfig, RunOptions
+from grendel.controls import BenignControl
+from grendel.judge import FakeJudge
+from grendel.records import RunRecord, RunStatus, Verdict
+from grendel.scoring import ClassifierVerdict, Scorer
 
 
 def _record() -> RunRecord:
@@ -81,7 +81,7 @@ async def test_judge_disabled_matches_phase5(tmp_path: Path) -> None:
 
 # small helper to reduce Runner boilerplate
 async def Runner_run(adapter, tmp_path, attacks, *, controls=(), scorer=None):
-    from gauntlet.runner import Runner
+    from grendel.runner import Runner
 
     return await Runner(adapter, _opts(tmp_path), scorer=scorer).run(
         attacks, _record(), controls=controls

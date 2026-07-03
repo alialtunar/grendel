@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from gauntlet.records import AttemptRecord, RunRecord, ScoreDetail, Verdict
-from gauntlet.scoring import ClassifierVerdict, ScoreResult
+from grendel.records import AttemptRecord, RunRecord, ScoreDetail, Verdict
+from grendel.scoring import ClassifierVerdict, ScoreResult
 
 
 def test_score_detail_roundtrip() -> None:
@@ -23,7 +23,7 @@ def test_score_result_roundtrip() -> None:
     r = ScoreResult(
         verdict=Verdict.FAIL,
         score_tier="T1",
-        detail=ScoreDetail(tier="T1", reason="canary matched", matched="GAUNTLET-PWNED"),
+        detail=ScoreDetail(tier="T1", reason="canary matched", matched="GRENDEL-PWNED"),
     )
     assert ScoreResult.model_validate_json(r.model_dump_json()) == r
 

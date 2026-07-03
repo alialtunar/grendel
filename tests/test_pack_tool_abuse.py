@@ -7,17 +7,17 @@ from pathlib import Path
 import pytest
 
 from fakes import FakeAdapter
-from gauntlet.agents.demo import weak_agent
-from gauntlet.config import GauntletConfig
-from gauntlet.errors import ConfigError, PackError
-from gauntlet.packloader import default_packs_dir, load_packs
-from gauntlet.records import Verdict, make_run_record
-from gauntlet.runner import Runner
-from gauntlet.scoring import Scorer
-from gauntlet.targets import build_target, resolve_target_info
-from gauntlet.targets.python_adapter import AgentSandboxAdapter, PythonCallableAdapter
+from grendel.agents.demo import weak_agent
+from grendel.config import GrendelConfig
+from grendel.errors import ConfigError, PackError
+from grendel.packloader import default_packs_dir, load_packs
+from grendel.records import Verdict, make_run_record
+from grendel.runner import Runner
+from grendel.scoring import Scorer
+from grendel.targets import build_target, resolve_target_info
+from grendel.targets.python_adapter import AgentSandboxAdapter, PythonCallableAdapter
 
-DEMO = "gauntlet.agents.demo:weak_agent"
+DEMO = "grendel.agents.demo:weak_agent"
 
 
 def _tool_abuse_attacks() -> list:
@@ -32,7 +32,7 @@ def test_pack_loads_five_side_effect_attacks() -> None:
 
 async def test_pack_scores_fail_t4_against_weak_agent(tmp_path: Path) -> None:
     attacks = _tool_abuse_attacks()
-    cfg = GauntletConfig()
+    cfg = GrendelConfig()
     cfg.run.output_dir = tmp_path
     adapter = AgentSandboxAdapter(weak_agent, entrypoint=DEMO)
     record = make_run_record(
@@ -55,7 +55,7 @@ async def test_pack_scores_fail_t4_against_weak_agent(tmp_path: Path) -> None:
 
 async def test_pack_skipped_against_plain_adapter(tmp_path: Path) -> None:
     attacks = _tool_abuse_attacks()
-    cfg = GauntletConfig()
+    cfg = GrendelConfig()
     cfg.run.output_dir = tmp_path
     adapter = FakeAdapter()  # tool_calls defaults to None
     record = make_run_record(
@@ -78,9 +78,7 @@ async def test_pack_skipped_against_plain_adapter(tmp_path: Path) -> None:
 
 
 def test_build_agent_target_and_info() -> None:
-    cfg = GauntletConfig.model_validate(
-        {"targets": {"demo": {"type": "agent", "entrypoint": DEMO}}}
-    )
+    cfg = GrendelConfig.model_validate({"targets": {"demo": {"type": "agent", "entrypoint": DEMO}}})
     adapter = build_target("demo", cfg, dry_run=True)
     assert isinstance(adapter, AgentSandboxAdapter)
     info = resolve_target_info("demo", cfg)
@@ -93,24 +91,24 @@ def test_build_agent_target_and_info() -> None:
 
 
 def test_build_python_target() -> None:
-    cfg = GauntletConfig.model_validate({"targets": {"p": {"type": "python", "entrypoint": DEMO}}})
+    cfg = GrendelConfig.model_validate({"targets": {"p": {"type": "python", "entrypoint": DEMO}}})
     adapter = build_target("p", cfg, dry_run=True)
     assert isinstance(adapter, PythonCallableAdapter)
 
 
 def test_agent_target_requires_entrypoint() -> None:
     with pytest.raises(ConfigError, match="entrypoint"):
-        GauntletConfig.model_validate({"targets": {"bad": {"type": "agent"}}})
+        GrendelConfig.model_validate({"targets": {"bad": {"type": "agent"}}})
 
 
 def test_mcp_target_requires_block() -> None:
     with pytest.raises(ConfigError, match="mcp"):
-        GauntletConfig.model_validate({"targets": {"bad": {"type": "mcp"}}})
+        GrendelConfig.model_validate({"targets": {"bad": {"type": "mcp"}}})
 
 
 def test_http_target_still_requires_provider_and_model() -> None:
     with pytest.raises(ConfigError, match="provider"):
-        GauntletConfig.model_validate({"targets": {"h": {"type": "http"}}})
+        GrendelConfig.model_validate({"targets": {"h": {"type": "http"}}})
 
 
 # --- Fix #8: loader rejects malformed side-effect assertions ---

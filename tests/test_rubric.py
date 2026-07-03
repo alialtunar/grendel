@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from gauntlet.errors import ConfigError
-from gauntlet.judge import RUBRIC_V1, get_rubric
+from grendel.errors import ConfigError
+from grendel.judge import RUBRIC_V1, get_rubric
 
 
 def test_rubric_v1_pinned() -> None:

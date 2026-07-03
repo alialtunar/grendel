@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from gauntlet.attacks import Attack
-from gauntlet.records import Verdict
-from gauntlet.scoring import ClassifierVerdict, LexicalClassifier, Scorer
+from grendel.attacks import Attack
+from grendel.records import Verdict
+from grendel.scoring import ClassifierVerdict, LexicalClassifier, Scorer
 
 
 def _attack(success_when: dict) -> Attack:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 
-from gauntlet.logging_setup import configure_logging, get_logger
+from grendel.logging_setup import configure_logging, get_logger
 
 
 def test_json_lines_parse(capsys) -> None:
@@ -33,10 +33,10 @@ def test_level_filter(capsys) -> None:
 def test_idempotent_single_handler() -> None:
     configure_logging(level="INFO", fmt="text")
     configure_logging(level="INFO", fmt="text")
-    root = logging.getLogger("gauntlet")
+    root = logging.getLogger("grendel")
     assert len(root.handlers) == 1
 
 
 def test_get_logger_is_child() -> None:
     log = get_logger("cli")
-    assert log.name == "gauntlet.cli"
+    assert log.name == "grendel.cli"

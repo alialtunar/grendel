@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from gauntlet.judge import FakeJudge, JudgeVote, tally_votes
+from grendel.judge import FakeJudge, JudgeVote, tally_votes
 
 
 def _votes(*labels: str) -> list[JudgeVote]:

@@ -1,4 +1,4 @@
-"""CLI tests for `gauntlet list --packs` wired to the real loader."""
+"""CLI tests for `grendel list --packs` wired to the real loader."""
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from gauntlet.cli import app
+from grendel.cli import app
 
 runner = CliRunner()
 
-EXAMPLE = str(Path(__file__).resolve().parents[1] / "examples" / "gauntlet.example.yaml")
+EXAMPLE = str(Path(__file__).resolve().parents[1] / "examples" / "grendel.example.yaml")
 
 BUNDLED_IDS = [
     "prompt-injection/direct-override-01",
@@ -38,7 +38,7 @@ def test_list_packs_prints_twelve_grouped() -> None:
 
 
 def test_list_packs_includes_mcp_category() -> None:
-    # M5 (additive): the mcp category surfaces in `gauntlet list --packs`.
+    # M5 (additive): the mcp category surfaces in `grendel list --packs`.
     result = runner.invoke(app, ["-c", EXAMPLE, "list", "--packs"])
     assert result.exit_code == 0
     assert "mcp (4):" in result.output
@@ -63,3 +63,25 @@ def test_list_packs_shows_source_tag() -> None:
     result = runner.invoke(app, ["-c", EXAMPLE, "list", "--packs"])
     assert result.exit_code == 0
     assert "[bundled]" in result.output
+
+
+# --- Phase 17: --category / --source filters + count line -------------------------------------
+def test_list_packs_category_filter_and_count() -> None:
+    result = runner.invoke(app, ["-c", EXAMPLE, "list", "--packs", "--category", "jailbreak"])
+    assert result.exit_code == 0, result.output
+    assert "Packs: 6 total (category=jailbreak)" in result.output
+    assert "jailbreak (6):" in result.output
+    assert "prompt-injection (6):" not in result.output  # filtered out
+
+
+def test_list_packs_unknown_category_nudges() -> None:
+    result = runner.invoke(app, ["-c", EXAMPLE, "list", "--packs", "--category", "nope"])
+    assert result.exit_code == 2
+    assert "unknown --category" in result.output
+    assert "jailbreak" in result.output  # lists the available values
+
+
+def test_list_packs_unknown_source_nudges() -> None:
+    result = runner.invoke(app, ["-c", EXAMPLE, "list", "--packs", "--source", "nope"])
+    assert result.exit_code == 2
+    assert "unknown --source" in result.output

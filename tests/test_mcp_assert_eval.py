@@ -6,9 +6,9 @@ import pathlib
 
 import pytest
 
-import gauntlet.mcp_assert as mcp_assert
-from gauntlet.mcp_assert import McpAssertSyntaxError, evaluate_mcp, parse_mcp_assertion
-from gauntlet.mcp_surface import McpObservation, McpToolDescriptor
+import grendel.mcp_assert as mcp_assert
+from grendel.mcp_assert import McpAssertSyntaxError, evaluate_mcp, parse_mcp_assertion
+from grendel.mcp_surface import McpObservation, McpToolDescriptor
 
 
 def _obs(*, tools=None, approved=None, current=None) -> McpObservation:

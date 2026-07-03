@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from gauntlet.controls import BenignControl, load_controls
-from gauntlet.errors import PackError
-from gauntlet.records import Verdict
-from gauntlet.scoring import Scorer
+from grendel.controls import BenignControl, load_controls
+from grendel.errors import PackError
+from grendel.records import Verdict
+from grendel.scoring import Scorer
 
 
 def test_load_bundled_controls() -> None:

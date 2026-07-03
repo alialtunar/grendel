@@ -6,9 +6,9 @@ import inspect
 
 import pytest
 
-from gauntlet import sideeffect
-from gauntlet.sandbox import ToolCall
-from gauntlet.sideeffect import AssertionSyntaxError, evaluate, parse_assertion
+from grendel import sideeffect
+from grendel.sandbox import ToolCall
+from grendel.sideeffect import AssertionSyntaxError, evaluate, parse_assertion
 
 # Two send_email calls (one to an external address) + one delete_file.
 CALLS = [

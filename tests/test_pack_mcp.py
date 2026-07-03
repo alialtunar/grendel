@@ -7,17 +7,17 @@ from pathlib import Path
 import pytest
 
 from fakes import FakeAdapter
-from gauntlet.agents.mcp_demo import make_fake_client
-from gauntlet.config import GauntletConfig
-from gauntlet.errors import PackError
-from gauntlet.packloader import default_packs_dir, load_packs
-from gauntlet.records import Verdict, make_run_record
-from gauntlet.runner import Runner
-from gauntlet.scoring import Scorer
-from gauntlet.targets import build_target, resolve_target_info
-from gauntlet.targets.mcp_adapter import MCPTargetAdapter
+from grendel.agents.mcp_demo import make_fake_client
+from grendel.config import GrendelConfig
+from grendel.errors import PackError
+from grendel.packloader import default_packs_dir, load_packs
+from grendel.records import Verdict, make_run_record
+from grendel.runner import Runner
+from grendel.scoring import Scorer
+from grendel.targets import build_target, resolve_target_info
+from grendel.targets.mcp_adapter import MCPTargetAdapter
 
-FAKE_CLIENT = "gauntlet.agents.mcp_demo:make_fake_client"
+FAKE_CLIENT = "grendel.agents.mcp_demo:make_fake_client"
 
 
 def _mcp_attacks() -> list:
@@ -33,7 +33,7 @@ def test_pack_loads_four_mcp_attacks() -> None:
 
 async def test_pack_scores_fail_t4_against_fake_server(tmp_path: Path) -> None:
     attacks = _mcp_attacks()
-    cfg = GauntletConfig()
+    cfg = GrendelConfig()
     cfg.run.output_dir = tmp_path
     adapter = MCPTargetAdapter(name="mcp", client=make_fake_client())
     record = make_run_record(
@@ -57,7 +57,7 @@ async def test_pack_scores_fail_t4_against_fake_server(tmp_path: Path) -> None:
 
 async def test_pack_skipped_against_plain_adapter(tmp_path: Path) -> None:
     attacks = _mcp_attacks()
-    cfg = GauntletConfig()
+    cfg = GrendelConfig()
     cfg.run.output_dir = tmp_path
     adapter = FakeAdapter()  # mcp=None, tool_calls=None
     record = make_run_record(
@@ -78,7 +78,7 @@ async def test_pack_skipped_against_plain_adapter(tmp_path: Path) -> None:
 
 
 def test_fake_client_target_validates_and_builds_offline() -> None:
-    cfg = GauntletConfig.model_validate(
+    cfg = GrendelConfig.model_validate(
         {"targets": {"m": {"type": "mcp", "mcp": {"fake_client": FAKE_CLIENT}}}}
     )
     adapter = build_target("m", cfg, dry_run=True)

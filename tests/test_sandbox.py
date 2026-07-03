@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from gauntlet.sandbox import ToolCall, ToolContext, ToolRegistry
+from grendel.sandbox import ToolCall, ToolContext, ToolRegistry
 
 
 def test_call_records_in_order_with_ordinals() -> None:

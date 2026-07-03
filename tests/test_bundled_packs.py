@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import re
 
-from gauntlet.attacks import ALLOWED_LICENSES
-from gauntlet.packloader import default_packs_dir, list_packs, load_packs
+from grendel.attacks import ALLOWED_LICENSES
+from grendel.packloader import default_packs_dir, list_packs, load_packs
 
 OWASP_RE = re.compile(r"^LLM(0[1-9]|10)$")
 ATLAS_RE = re.compile(r"^AML\.T\d{4}(\.\d{3})?$")

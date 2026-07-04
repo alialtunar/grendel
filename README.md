@@ -11,6 +11,9 @@ target, success means a string slipped through. For an agent, success means a **
 effect** — it actually called `send_email()` to the attacker without confirmation. That
 outcome-based judging is what separates a real agent-security tool from a prompt scanner.
 
+![grendel's live attack dashboard: the GRENDEL wordmark, a live Attack Success Rate and
+per-category breakdown, and attacks streaming in as defended (green) or hits (red).](docs/images/live-dashboard.png)
+
 ---
 
 ## ⚠ Authorized use only — defensive security, not an offensive tool

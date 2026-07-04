@@ -138,7 +138,56 @@ def render_welcome(*, color: bool = False, unicode: bool = True) -> str:
         f"  1. {g('add a target')}   (targets)  a hosted model + key, or your own agent's URL",
         f"  2. {g('fire attacks')}   (run)",
         f"  3. {g('read results')}   the live dashboard, then browse which attacks got through",
-        dim("  tip: open 'doctor' any time for a health check & next steps."),
+        "",
+        f"  {b('First time?')}  Pick {g('guided setup')} to do this step by step,",
+        f"  or {g('learn')} to see what every word here means.",
+        dim("  tip: 'doctor' is a health check & next steps any time."),
+    ]
+    return "\n".join(lines)
+
+
+def render_concepts(*, color: bool = False, unicode: bool = True) -> str:
+    """A plain-language glossary of every term a newcomer meets, shown by the 'learn' menu item.
+
+    The app's own explainer so someone who has never seen Grendel understands what a target, a
+    pack, ASR, and 'got through vs defended' mean — no external docs needed. ASCII-degrades so it
+    never crashes a legacy console; ``color`` adds ANSI headers/terms for a TTY.
+    """
+    dash = "—" if unicode else "-"
+    arrow = "→" if unicode else "->"
+    b = lambda t: _c(t, color, bold=True)  # noqa: E731 — tiny local stylers
+    g = lambda t: _c(t, color, fg=typer.colors.GREEN, bold=True)  # noqa: E731
+    cy = lambda t: _c(t, color, fg=typer.colors.BRIGHT_CYAN, bold=True)  # noqa: E731
+    dim = lambda t: _c(t, color, dim=True)  # noqa: E731
+    ok = _c("PASS", color, fg=typer.colors.GREEN, bold=True)
+    bad = _c("FAIL", color, fg=typer.colors.RED, bold=True)
+    lines = [
+        cy(f"What is Grendel?  {dash}  a red-team range for your AI"),
+        f"  You point it at an AI you own, it fires hundreds of {b('authorized')} attacks",
+        "  (jailbreaks, prompt injection, tool abuse), and grades each reply. You learn",
+        "  which attacks got through so you can fix them before a real attacker finds them.",
+        "",
+        b("The words you'll see"),
+        f"  {g('target')}    the AI under test {dash} a hosted model, or your own agent's URL.",
+        f"  {g('provider')}  who hosts the model: openai / anthropic / openrouter / ollama,",
+        f"            or a custom one. {dim('(ollama runs locally and is free.)')}",
+        f"  {g('api key')}   the secret used to call a hosted provider. It lives in an env",
+        f"            variable {dash} never written into the shared config file.",
+        f"  {g('pack')}      one attack, a small YAML file. {g('category')} groups them:",
+        "            jailbreak, prompt-injection, tool-abuse, ...",
+        f"  {g('run')}       fire every attack at your target and grade every reply.",
+        "",
+        b("Reading the result"),
+        f"  {bad} / {b('got through')}   the attack worked {dash} your AI did the unsafe thing.",
+        f"  {ok} / {b('defended')}      your AI refused or stayed safe. Good.",
+        f"  {g('ASR')}   Attack Success Rate {dash} % that got through. {b('Lower is better.')}",
+        f"  {g('judge')} an optional LLM that grades borderline replies (tier T3).",
+        "",
+        b("After a run"),
+        f"  Saved automatically. Browse {b('got through')} vs {b('defended')} right here,",
+        "  or export a Markdown / HTML report and compare runs over time.",
+        "",
+        dim(f"  Golden rule: only test what you own or may test {arrow} defensive use only."),
     ]
     return "\n".join(lines)
 

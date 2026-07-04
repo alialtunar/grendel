@@ -78,6 +78,61 @@ def test_home_menu_welcome_shown_when_no_targets(tmp_path, monkeypatch) -> None:
     assert "Get started:" in result.output and "add a target" in result.output
 
 
+def test_render_concepts_explains_the_jargon() -> None:
+    from grendel.banner import render_concepts
+
+    out = render_concepts(unicode=True)
+    # every core term a newcomer meets is defined in the app's own explainer
+    for term in ("target", "provider", "api key", "pack", "ASR", "got through", "defended"):
+        assert term in out
+    ascii_out = render_concepts(unicode=False)  # cp1254-safe: no fancy glyphs
+    for fancy in ("—", "·", "🐺", "→"):
+        assert fancy not in ascii_out
+
+
+def test_home_menu_learn_screen(tmp_path, monkeypatch) -> None:
+    # ? -> learn (the concepts explainer prints), then q
+    result = _menu(monkeypatch, tmp_path, "?\nq\n")
+    assert result.exit_code == 0, result.output
+    assert "What is Grendel?" in result.output and "Attack Success Rate" in result.output
+
+
+def test_home_menu_guided_setup_offered_only_when_no_targets(tmp_path, monkeypatch) -> None:
+    # fresh user sees the guided-setup entry...
+    fresh = _menu(monkeypatch, tmp_path, "q\n")
+    assert "guided setup" in fresh.output
+    # ...but a configured user does not (it's a first-run affordance)
+    (tmp_path / "grendel.yaml").write_text(
+        "targets:\n  gpt:\n    type: http\n    provider: openai\n    model: gpt-4o-mini\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("GRENDEL_NO_AUTOCONFIG", raising=False)
+    configured = _menu(monkeypatch, tmp_path, "q\n")
+    assert "guided setup" not in configured.output
+
+
+def test_home_menu_guided_setup_runs_the_flow(tmp_path, monkeypatch) -> None:
+    # 1 -> guided setup prints the intro then enters the run flow (provider+model, decline), then q
+    monkeypatch.setattr(cli, "_load_attacks", lambda *a, **k: [make_attack("jailbreak/a")])
+    result = _menu(monkeypatch, tmp_path, "1\n\ngpt-4o-mini\nn\nq\n")
+    assert result.exit_code == 0, result.output
+    assert "Guided setup" in result.output  # the plain-language intro
+    assert "fire 1 attack(s)" in result.output  # it reached the normal run confirm
+
+
+def test_home_menu_guided_key_gated_once_targets_exist(tmp_path, monkeypatch) -> None:
+    # With a target configured the [1] line is hidden AND typing '1' must not launch guided setup.
+    (tmp_path / "grendel.yaml").write_text(
+        "targets:\n  gpt:\n    type: http\n    provider: openai\n    model: gpt-4o-mini\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("GRENDEL_NO_AUTOCONFIG", raising=False)
+    result = _menu(monkeypatch, tmp_path, "1\nq\n")
+    assert result.exit_code == 0, result.output
+    assert "unknown option '1'" in result.output  # falls through, not a hidden guided launch
+    assert "Guided setup" not in result.output
+
+
 def test_home_menu_welcome_hidden_once_a_target_exists(tmp_path, monkeypatch) -> None:
     (tmp_path / "grendel.yaml").write_text(
         "targets:\n  gpt:\n    type: http\n    provider: openai\n    model: gpt-4o-mini\n",

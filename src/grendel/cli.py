@@ -2057,6 +2057,20 @@ def _menu_packs(cfg):
     return cfg
 
 
+def _menu_learn(cfg) -> None:
+    """Print the app's own plain-language explainer of every concept, then wait for a keypress."""
+    import sys
+
+    from .banner import render_concepts, stream_supports_unicode
+
+    typer.echo(
+        render_concepts(
+            color=sys.stdout.isatty(), unicode=stream_supports_unicode(sys.stdout)
+        )
+    )
+    _pause_menu()
+
+
 def _menu_doctor(cfg) -> None:
     import sys
 
@@ -2369,23 +2383,63 @@ def _menu_run(cfg):
             except ConfigError as exc:
                 typer.echo(f"  error: {exc}")
                 return cfg
+    _fire_and_report(run_cfg, target)
+    return cfg
+
+
+def _offer_to_set_key(missing: str) -> bool:
+    """When a run's provider key is unset, offer to set it now (TTY only). Returns True if saved.
+
+    Off-TTY (tests / pipes) this is a no-op so the warning-then-confirm flow stays byte-identical;
+    a newcomer on a real terminal gets to fix the key inline instead of dead-ending on a warning.
+    """
+    import sys
+
+    from .secrets import LOCAL_SECRETS_FILE, save_local_secret
+
+    if not sys.stdin.isatty():
+        return False
+    if not typer.confirm(f"  set {missing} now?", default=True):
+        return False
+    value = typer.prompt("  value", hide_input=True).strip()
+    if not value:
+        typer.echo("  (skipped — no value entered)")
+        return False
+    try:
+        save_local_secret(missing, value, Path(LOCAL_SECRETS_FILE))
+    except ConfigError as exc:
+        typer.echo(f"  error: {exc}")
+        return False
+    os.environ.setdefault(missing, value)  # usable this run too
+    typer.echo(f"  saved {missing} -> {LOCAL_SECRETS_FILE} (gitignored) [{_mask(value)}]")
+    return True
+
+
+def _fire_and_report(run_cfg, target) -> None:
+    """Fire every attack at ``target`` in ``run_cfg``, then show the report card + results browser.
+
+    Shared by the run menu and the guided setup so both take the identical run → report → browse
+    path. Returns on any error / cancel / empty catalog (the caller just redraws its menu).
+    """
     try:
         info = resolve_target_info(target, run_cfg)
         selected = _select_attacks(_menu_load_attacks(run_cfg), [])  # all packs — no prompt
     except (ConfigError, PackError) as exc:
         typer.echo(f"  error: {exc}")
-        return cfg
+        return
     if not selected:
         typer.echo("  no attacks available — import a corpus or add a pack dir first")
         _pause_menu()
-        return cfg
+        return
     label = f"{len(selected)} attack(s) vs {target} ({info['provider']}/{info['model']})"
     missing = _missing_run_key(target, run_cfg)  # a real run needs the provider's API key
     if missing:
-        typer.echo(f"  ⚠ {missing} is not set — attacks will fail (set it from 'api keys').")
+        typer.echo(f"  ⚠ {missing} is not set — attacks will just error without it.")
+        if _offer_to_set_key(missing):
+            missing = None
     if not typer.confirm(f"  fire {label}?", default=not missing):
         typer.echo("  cancelled")
-        return cfg
+        return
     adapter = build_target(target, run_cfg, dry_run=False)
     # Wire scoring/judge from config, same as the `run` subcommand — else cfg.scoring and any
     # enabled judge are silently ignored on this menu path.
@@ -2404,6 +2458,7 @@ def _menu_run(cfg):
 
     live = make_live_run(len(selected), f"{target} ({info['provider']}/{info['model']})")
     if live is not None:  # rich dashboard on a TTY
+        click.clear()  # wipe the menu's wordmark so only the live panel's logo shows (no double)
         with live:
             asyncio.run(
                 _execute(
@@ -2426,7 +2481,24 @@ def _menu_run(cfg):
         typer.echo("  " + _summary(record, record_path))
         typer.echo(f"  next: grendel report --run {record_path} --format md")
     _menu_results(record)  # browse which got through / were defended (returns on back)
-    return cfg
+
+
+def _menu_quickstart(cfg):
+    """Guided first run for a newcomer: a plain-language intro, then the normal run flow.
+
+    With no targets configured the run flow goes straight to provider → model → fire, so this is
+    just the run path with an orientation preamble that says, in words, what is about to happen.
+    """
+    typer.echo("")
+    typer.echo("  Guided setup — let's run your first test.")
+    typer.echo("  Here's what happens next:")
+    typer.echo("    1. pick a provider (openai / anthropic / ollama / your own agent)")
+    typer.echo("    2. pick a model, and set its API key if needed")
+    typer.echo("    3. Grendel fires every attack and shows a live scoreboard, then a report")
+    typer.echo("  Note: a real run makes API calls to that provider (ollama is local + free).")
+    typer.echo("  New to the words above? Quit this and open 'learn' first.")
+    typer.echo("")
+    return _menu_run(cfg)
 
 
 def _list_run_records(cfg):
@@ -2524,6 +2596,8 @@ def _home_letter(cfg, path: Path, *, unicode: bool = True) -> None:
             typer.echo(render_welcome(color=sys.stdout.isatty(), unicode=unicode))
             typer.echo("")
         typer.echo(config_header(path, unicode=unicode))
+        if not cfg.targets:  # newcomer → offer the guided path first
+            typer.echo("  [1] guided setup · set up and run your first test (start here)")
         typer.echo(f"  [t] targets   · {len(cfg.targets)} configured")
         typer.echo("  [k] api keys  · set / check provider keys")
         typer.echo("  [p] packs     · browse the attack catalog")
@@ -2533,9 +2607,14 @@ def _home_letter(cfg, path: Path, *, unicode: bool = True) -> None:
         typer.echo("  [i] import    · grow the catalog from a corpus")
         typer.echo("  [o] doctor    · status & diagnostics")
         typer.echo("  [a] settings  · run / judge / proxy")
+        typer.echo("  [?] learn     · what everything means (plain language)")
         typer.echo("  [s] save & quit    [q] quit without saving")
         choice = typer.prompt("select", default="q").strip().lower()
-        if choice == "t":
+        if choice == "1" and not cfg.targets:  # gated like the [1] line above (hidden once set up)
+            cfg = _menu_quickstart(cfg)
+        elif choice == "?":
+            _menu_learn(cfg)
+        elif choice == "t":
             cfg = _targets_letter(cfg)
         elif choice == "k":
             cfg = _api_keys_letter(cfg)
@@ -2575,9 +2654,15 @@ def _home_questionary(cfg, path: Path, *, unicode: bool = True) -> None:
         if not cfg.targets:  # fresh user → orient them before the menu (same as the letter shell)
             typer.echo(render_welcome(color=sys.stdout.isatty(), unicode=unicode))
             typer.echo("")
+        guided = (
+            [questionary.Choice("guided setup · run your first test (start here)", "guided")]
+            if not cfg.targets
+            else []
+        )
         choice = questionary.select(
             config_header(path, unicode=unicode),
             choices=[
+                *guided,
                 questionary.Choice(f"targets · {len(cfg.targets)} configured", "targets"),
                 questionary.Choice("api keys · set / check provider keys", "apikeys"),
                 questionary.Choice("packs · browse the attack catalog", "packs"),
@@ -2589,6 +2674,7 @@ def _home_questionary(cfg, path: Path, *, unicode: bool = True) -> None:
                 questionary.Choice("import · grow the catalog", "import"),
                 questionary.Choice("doctor · status & diagnostics", "doctor"),
                 questionary.Choice("settings · run / judge / proxy", "settings"),
+                questionary.Choice("learn · what everything means (plain language)", "learn"),
                 questionary.Separator(),
                 questionary.Choice("save & quit", "save"),
                 questionary.Choice("quit without saving", "quit"),
@@ -2597,7 +2683,11 @@ def _home_questionary(cfg, path: Path, *, unicode: bool = True) -> None:
         if choice is None or choice == "quit":
             typer.echo("no changes saved")
             return
-        if choice == "targets":
+        if choice == "guided":
+            cfg = _menu_quickstart(cfg)
+        elif choice == "learn":
+            _menu_learn(cfg)
+        elif choice == "targets":
             cfg = _targets_questionary(cfg)
         elif choice == "apikeys":
             cfg = _api_keys_questionary(cfg)

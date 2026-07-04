@@ -46,7 +46,6 @@ dev = [
 ]
 
 [project.urls]
-# TODO(release): replace USERNAME with the real GitHub account before publishing.
 Homepage = "https://github.com/alialtunar/grendel"
 Repository = "https://github.com/alialtunar/grendel"
 Issues = "https://github.com/alialtunar/grendel/issues"

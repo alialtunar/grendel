@@ -1,7 +1,7 @@
 # grendel
 
 **Red-team your AI agents.** `grendel` is a CLI tool that fires hundreds of authorized
-attacks at an LLM endpoint, a tool-using agent, or an MCP server — then grades the result.
+attacks at an LLM endpoint or a tool-using agent — then grades the result.
 Runs print a per-category pass/fail summary and Attack Success Rate inline, and you get a
 report showing where your agent is solid, where it collapses, and **the exact payloads that
 broke it**.
@@ -239,10 +239,15 @@ controls still answered correctly), **cost**, and **latency** — everything pin
 
 ## Agent mode
 
-Beyond plain LLM endpoints, grendel drives **Python-callable**, **MCP-server**, and
-**instrumented-sandbox** targets. The sandbox observes every tool call so attacks can assert
-on **side effects** (`success_when: { type: side-effect, assert: send_email.called == true }`)
-instead of just on response text.
+Beyond plain LLM endpoints, grendel drives **Python-callable** and **instrumented-sandbox**
+targets. The sandbox observes every tool call so attacks can assert on **side effects**
+(`success_when: { type: side-effect, assert: send_email.called == true }`) instead of just on
+response text.
+
+> **MCP targets are experimental.** The MCP attack surface (description-poisoning, rug-pull,
+> cross-tool-shadowing) and its scoring are implemented and run today against a bundled
+> **in-memory demo client** (`--mcp-fake-client`); connecting to a **real** MCP server is not
+> wired up yet. Point grendel at a real server and the run records an error, not a verdict.
 
 ## Reports & regression tracking
 

@@ -148,7 +148,7 @@ each staged pack first. MVP ships Vendored + Feed; Discover lands in Phase 9.
 | Tier | Method | Cost | Used for |
 |------|--------|------|----------|
 | T1 | Deterministic — refusal strings, planted canary, regex | free | first pass on every attempt |
-| T2 | Refusal/harm classifier (e.g. Llama-Guard-class) | cheap | ambiguous text outcomes |
+| T2 | Refusal/harm classifier (ships as a lexical keyword scorer; pluggable for a real model) | cheap | ambiguous text outcomes |
 | T3 | LLM-as-judge, versioned rubric, ensemble vote | paid, **optional** | nuanced/contested cases |
 | T4 | State/outcome assertion (`tool.called`, final state) | free | agent targets — gold standard |
 

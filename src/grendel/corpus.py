@@ -1,7 +1,8 @@
 """Open-corpus import: convert public red-team corpora into validated Attack YAML packs.
 
 `grendel import --source garak --path <corpus> --out <catalog-dir>` reads a corpus from a LOCAL
-path, converts each prompt to a schema-valid ``Attack`` (via the real model), license-gates,
+path, converts each prompt to a schema-valid ``Attack`` (a deterministic template — no model
+call), license-gates,
 de-duplicates by normalized payload (against the out dir AND within the run, so the import is
 incremental/re-runnable), and writes path-safe ``<out>/<category>/<id>.yaml`` — packs the existing
 ``packloader`` loads and ``--pack-dir`` consumes. Offline: the source reads a local path; no

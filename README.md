@@ -230,7 +230,7 @@ never auto-armed).
 | Tier | Method | Cost | Used for |
 |------|--------|------|----------|
 | **T1** | Deterministic — refusal strings, planted canary, regex | free | first pass on every attempt |
-| **T2** | Refusal / harm classifier | cheap | ambiguous text outcomes |
+| **T2** | Lexical refusal/harm scorer (keyword-based; pluggable for a real classifier) | cheap | ambiguous text outcomes |
 | **T3** | LLM-as-judge, versioned rubric, ensemble vote | paid, **optional** | nuanced / contested cases |
 | **T4** | State / outcome assertion (`tool.called`, final state) | free | agent targets — the gold standard |
 

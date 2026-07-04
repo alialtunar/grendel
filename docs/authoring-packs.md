@@ -78,6 +78,9 @@ success_when:
   threshold: 0.5    # 0..1, default 0.5
 ```
 
+The bundled classifier is a deterministic **lexical keyword scorer** (no model call); the
+`Classifier` seam lets you plug a real model in its place.
+
 ### `judge` — LLM-as-judge outcome
 
 ```yaml

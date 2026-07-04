@@ -21,10 +21,15 @@ def test_packs_dir_is_populated() -> None:
         assert list(sub.glob("*.yaml")), f"no yaml files in {sub}"
 
 
-def test_loads_exactly_twenty_one() -> None:
-    # 12 string packs (prompt-injection + jailbreak) + 5 side-effect tool-abuse + 4 mcp.
+# 21 hand-authored per-file packs + the bundled compiled corpus (AdvBench 520 + deepset 262).
+CURATED = 21
+COMPILED = 782
+TOTAL = CURATED + COMPILED  # 803
+
+
+def test_loads_curated_plus_compiled() -> None:
     attacks = load_packs(default_packs_dir())
-    assert len(attacks) == 21
+    assert len(attacks) == TOTAL
 
 
 def test_ids_unique_and_match_path() -> None:
@@ -41,7 +46,8 @@ def test_category_counts() -> None:
     counts: dict[str, int] = {}
     for a in attacks:
         counts[a.category] = counts.get(a.category, 0) + 1
-    assert counts == {"prompt-injection": 6, "jailbreak": 6, "tool-abuse": 5, "mcp": 4}
+    # curated 6+6 + compiled (jailbreak 520 / prompt-injection 262)
+    assert counts == {"prompt-injection": 268, "jailbreak": 526, "tool-abuse": 5, "mcp": 4}
 
 
 def test_all_fields_well_formed() -> None:
@@ -55,12 +61,13 @@ def test_all_fields_well_formed() -> None:
         elif a.category == "mcp":
             assert a.success_when.type in {"mcp-assert", "side-effect"}
         else:
-            assert a.success_when.type == "string"
+            # curated jailbreak/prompt-injection use string; compiled corpus uses classifier
+            assert a.success_when.type in {"string", "classifier"}
         assert OWASP_RE.match(a.owasp)
         assert ATLAS_RE.match(a.atlas)
 
 
-def test_list_packs_twenty_one_rows_license_ok() -> None:
+def test_list_packs_rows_license_ok() -> None:
     infos = list_packs(default_packs_dir())
-    assert len(infos) == 21
+    assert len(infos) == TOTAL
     assert all(info.license_ok for info in infos)

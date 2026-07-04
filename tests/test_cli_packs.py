@@ -28,11 +28,12 @@ BUNDLED_IDS = [
 ]
 
 
-def test_list_packs_prints_twelve_grouped() -> None:
+def test_list_packs_prints_grouped() -> None:
     result = runner.invoke(app, ["-c", EXAMPLE, "list", "--packs"])
     assert result.exit_code == 0
-    assert "prompt-injection (6):" in result.output
-    assert "jailbreak (6):" in result.output
+    # 6 curated + 262 compiled deepset / 6 curated + 520 compiled advbench
+    assert "prompt-injection (268):" in result.output
+    assert "jailbreak (526):" in result.output
     for attack_id in BUNDLED_IDS:
         assert attack_id in result.output
 
@@ -69,9 +70,9 @@ def test_list_packs_shows_source_tag() -> None:
 def test_list_packs_category_filter_and_count() -> None:
     result = runner.invoke(app, ["-c", EXAMPLE, "list", "--packs", "--category", "jailbreak"])
     assert result.exit_code == 0, result.output
-    assert "Packs: 6 total (category=jailbreak)" in result.output
-    assert "jailbreak (6):" in result.output
-    assert "prompt-injection (6):" not in result.output  # filtered out
+    assert "Packs: 526 total (category=jailbreak)" in result.output
+    assert "jailbreak (526):" in result.output
+    assert "prompt-injection (268):" not in result.output  # filtered out
 
 
 def test_list_packs_unknown_category_nudges() -> None:

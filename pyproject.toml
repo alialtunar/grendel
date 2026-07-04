@@ -55,7 +55,7 @@ grendel = "grendel.cli:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/grendel"]
-artifacts = ["src/grendel/packs/**/*.yaml"]
+artifacts = ["src/grendel/packs/**/*.yaml", "src/grendel/packs/_corpora.jsonl"]
 
 [tool.ruff]
 line-length = 100

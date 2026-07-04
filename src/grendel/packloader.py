@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -105,8 +106,38 @@ def load_packs(
         _check_mcp_assertion(path, attack)
         attacks.append(attack)
 
+    # Bundled compiled corpus: hundreds of permissively-licensed corpus attacks shipped as ONE
+    # JSONL (one Attack per line) rather than one file each — a per-file dir adds seconds to every
+    # startup (each pack is read+parsed+validated). Absent in a custom packs_dir → skipped.
+    compiled = packs_dir / "_corpora.jsonl"
+    if compiled.is_file():
+        for attack in _load_compiled(compiled):
+            if attack.id in seen:
+                raise PackError(
+                    f"duplicate attack id {attack.id!r} in {compiled} and {seen[attack.id]}"
+                )
+            seen[attack.id] = compiled
+            _check_license(compiled, attack, allow_unlisted_licenses=allow_unlisted_licenses)
+            _check_side_effect_assertion(compiled, attack)
+            _check_mcp_assertion(compiled, attack)
+            attacks.append(attack)
+
     attacks.sort(key=lambda a: a.id)
     return attacks
+
+
+def _load_compiled(path: Path) -> list[Attack]:
+    """Load the bundled compiled corpus (one JSON Attack per line); blank lines skipped."""
+    out: list[Attack] = []
+    for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            out.append(Attack.model_validate(json.loads(line)))
+        except (json.JSONDecodeError, ValidationError) as exc:
+            raise PackError(f"invalid compiled attack at {path}:{i}: {exc}") from exc
+    return out
 
 
 def _parse_and_validate(path: Path) -> Attack:

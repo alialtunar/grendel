@@ -53,7 +53,7 @@ def test_default_empty_catalog_equals_bundled() -> None:
     bundled = load_packs(default_packs_dir())
     assert [e.attack.id for e in entries] == [a.id for a in bundled]
     assert all(e.source is Source.BUNDLED for e in entries)
-    assert len(entries) == 21
+    assert len(entries) == 803
 
 
 def test_merge_user_and_feed_sources(tmp_path: Path) -> None:
@@ -68,7 +68,7 @@ def test_merge_user_and_feed_sources(tmp_path: Path) -> None:
     assert by_id["jailbreak/zzz-feed-99"].source is Source.FEED
     # bundled still present and tagged
     assert by_id["jailbreak/persona-dan-01"].source is Source.BUNDLED
-    assert len(entries) == 23
+    assert len(entries) == 805  # 803 bundled + 1 user + 1 feed
     # sorted by id
     assert [e.attack.id for e in entries] == sorted(by_id)
 
@@ -82,7 +82,7 @@ def test_absent_dirs_contribute_zero(tmp_path: Path) -> None:
         )
     )
     entries = load_catalog(cfg)
-    assert len(entries) == 21
+    assert len(entries) == 803
     assert all(e.source is Source.BUNDLED for e in entries)
 
 
@@ -106,7 +106,7 @@ def test_override_precedence_user_beats_bundled(tmp_path: Path) -> None:
     winner = by_id["jailbreak/persona-dan-01"]
     assert winner.source is Source.USER
     assert winner.attack.name == "patched"
-    assert len(entries) == 21  # loser dropped, no growth
+    assert len(entries) == 803  # loser dropped, no growth
 
 
 def test_override_user_beats_feed(tmp_path: Path) -> None:

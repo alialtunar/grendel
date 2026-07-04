@@ -149,14 +149,14 @@ def test_home_menu_packs_lists_attacks(tmp_path, monkeypatch) -> None:
     result = _menu(monkeypatch, tmp_path, "p\n\nq\n")
     assert result.exit_code == 0, result.output
     assert "attacks · categories:" in result.output
-    assert "jailbreak/persona-dan-01" in result.output  # a bundled attack id is listed
+    assert "jailbreak/advbench-" in result.output  # a bundled attack id is listed (first 50)
 
 
 def test_home_menu_packs_filter_by_category(tmp_path, monkeypatch) -> None:
     result = _menu(monkeypatch, tmp_path, "p\njailbreak\nq\n")
     assert result.exit_code == 0, result.output
-    assert "jailbreak/persona-dan-01" in result.output
-    assert "prompt-injection/direct-override-01" not in result.output  # filtered out
+    assert "jailbreak/advbench-" in result.output
+    assert "prompt-injection/" not in result.output  # filtered out
 
 
 def test_home_menu_doctor_entry(tmp_path, monkeypatch) -> None:

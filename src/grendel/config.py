@@ -191,6 +191,16 @@ class CatalogConfig(BaseModel):
     allow_unlisted_licenses: bool = False  # gate override applied to ALL sources + the feed
 
 
+# The built-in default feed `grendel update` pulls from when catalog.feeds is empty — a manifest
+# hosted in this repo (GitHub raw), refreshed by the feed-refresh workflow. NOT a model default
+# (config stays "empty == bundled-only"); applied at the update/catalog-load layer instead.
+DEFAULT_FEED = FeedSource(
+    name="grendel",
+    url="https://raw.githubusercontent.com/alialtunar/grendel/master/feeds/manifest.json",
+)
+DEFAULT_FEED_CACHE_DIR = Path("feed_cache")  # where a zero-config `grendel update` writes + reads
+
+
 class ProxyConfig(BaseModel):
     """LLM-proxy config (Phase 12: configurable from the terminal; served in Phase 13).
 

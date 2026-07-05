@@ -1,0 +1,206 @@
+{
+  "feed": "grendel",
+  "manifest_version": 1,
+  "packs": [
+    {
+      "id": "jailbreak/itw-042062d288",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "8f5f44874eb16d79d9f6b0c2780ada67cf4e769de36401eb40c6901b35c48e01",
+      "url": "packs/jailbreak/itw-042062d288.yaml"
+    },
+    {
+      "id": "jailbreak/itw-0d75ab2105",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "5f5d4b932ff85df39e15ec489b5f30a3a26beec284f3ce0e65ed44f78449beb6",
+      "url": "packs/jailbreak/itw-0d75ab2105.yaml"
+    },
+    {
+      "id": "jailbreak/itw-16436b406e",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "726709c3e66243acfb304b8b22eaa283fb001fd545ddc19f05577d22b49b8584",
+      "url": "packs/jailbreak/itw-16436b406e.yaml"
+    },
+    {
+      "id": "jailbreak/itw-233bf33a70",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "1cc0e9647a47f9558ec300cb40eb968863aa5372a9de861a1b53a942ee2e33b1",
+      "url": "packs/jailbreak/itw-233bf33a70.yaml"
+    },
+    {
+      "id": "jailbreak/itw-23625425f5",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "389a09136a1ba052d9a6d3fa7eaa7d67c5e4a8cf08f7390e8bbc24ba8f08b787",
+      "url": "packs/jailbreak/itw-23625425f5.yaml"
+    },
+    {
+      "id": "jailbreak/itw-2c42f0d276",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "c663d1f81b11c7b2498030d7c6cbf293776d9c7d4c2d2dcd91904a18a6f52aa5",
+      "url": "packs/jailbreak/itw-2c42f0d276.yaml"
+    },
+    {
+      "id": "jailbreak/itw-33d79cbf0f",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "bb5ccb47e7b3baa35a37ce247498d67d4f2876b57b28ad809aee276d9bb90664",
+      "url": "packs/jailbreak/itw-33d79cbf0f.yaml"
+    },
+    {
+      "id": "jailbreak/itw-36d2967709",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "12fc66c80891aa477de738d9fdd13f9376835f7db1297056f40f5609982118e4",
+      "url": "packs/jailbreak/itw-36d2967709.yaml"
+    },
+    {
+      "id": "jailbreak/itw-375fe098a5",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "4169efdd237c213c9c698be6c973fbd05623f4eaacb87fe78df718beb2f0d8ac",
+      "url": "packs/jailbreak/itw-375fe098a5.yaml"
+    },
+    {
+      "id": "jailbreak/itw-415775e800",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "dcd631c90e1595d4cb9a0b84c17eed32715e65c12d482d72714b43f20ee95ce4",
+      "url": "packs/jailbreak/itw-415775e800.yaml"
+    },
+    {
+      "id": "jailbreak/itw-428f23292b",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "8ae38ad10c296f511b6df98c16148b7e0dd8284595d5607add7233e1d239a4f6",
+      "url": "packs/jailbreak/itw-428f23292b.yaml"
+    },
+    {
+      "id": "jailbreak/itw-438c887b6f",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "9f670e5797bc69d02b70d397835e77bcabf30e2cb9c3ed1561f492b629c8c5e3",
+      "url": "packs/jailbreak/itw-438c887b6f.yaml"
+    },
+    {
+      "id": "jailbreak/itw-6d3a756554",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "84fa926a7a38362aaea0a3d6d7c04f75db885a69ebce75f35018bb8c967f9a41",
+      "url": "packs/jailbreak/itw-6d3a756554.yaml"
+    },
+    {
+      "id": "jailbreak/itw-70e64e94ec",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "c2ed1fcdc40e4b337c0b769dafb7eafbf4c05b43471ca4c69cabbd0423335fa1",
+      "url": "packs/jailbreak/itw-70e64e94ec.yaml"
+    },
+    {
+      "id": "jailbreak/itw-7c100f60dd",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "85ed6ed1f9f469b9d230c229d7c906c8e697c14cda5244abdeac81dad112f23e",
+      "url": "packs/jailbreak/itw-7c100f60dd.yaml"
+    },
+    {
+      "id": "jailbreak/itw-914d210c3c",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "23959db9992a07e8987dc83582758b7de5694b476316e6ee11be53b552469eed",
+      "url": "packs/jailbreak/itw-914d210c3c.yaml"
+    },
+    {
+      "id": "jailbreak/itw-96a8ce18d5",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "70b2e00b2eaa6a23121358265b15785817d96d0ba6549e3dab181d2ef0749bf8",
+      "url": "packs/jailbreak/itw-96a8ce18d5.yaml"
+    },
+    {
+      "id": "jailbreak/itw-a834ac4a83",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "41c4a066dd720106e98e2a2c5644281a63dc3ab6641fdc94ea3564472b59c2a9",
+      "url": "packs/jailbreak/itw-a834ac4a83.yaml"
+    },
+    {
+      "id": "jailbreak/itw-bcfb3d529b",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "082a7ee12c9d7abb041f86ecccd34fbcc4910a51c563800507a703ef80e873f0",
+      "url": "packs/jailbreak/itw-bcfb3d529b.yaml"
+    },
+    {
+      "id": "jailbreak/itw-c1a4eb55bf",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "32e4c76c898f31e7b5bb5d0fcf0409485e7051e0ac7733fd1f6fb26915cf6693",
+      "url": "packs/jailbreak/itw-c1a4eb55bf.yaml"
+    },
+    {
+      "id": "jailbreak/itw-cc703c789b",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "a2ca4adca88b79454b5caa39f5bfa83c7e49588f13b88a39bb120d268d13d8b1",
+      "url": "packs/jailbreak/itw-cc703c789b.yaml"
+    },
+    {
+      "id": "jailbreak/itw-cee76e30f1",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "d53bd29a052e4c5cf52fd1141b70e5bae502fb073a702345dea221bbc9826a7b",
+      "url": "packs/jailbreak/itw-cee76e30f1.yaml"
+    },
+    {
+      "id": "jailbreak/itw-e4a9abef03",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "2453da9e9cfb155344917c10edc51105820e352e48233c83a26e62be67dcea82",
+      "url": "packs/jailbreak/itw-e4a9abef03.yaml"
+    },
+    {
+      "id": "jailbreak/itw-e77c0c54c1",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "01a1cf5520eab3f34d32596d64414a20a994fc67772c877d5c5c4a788e07e2da",
+      "url": "packs/jailbreak/itw-e77c0c54c1.yaml"
+    },
+    {
+      "id": "jailbreak/itw-e87c00ec15",
+      "category": "jailbreak",
+      "version": 1,
+      "license": "MIT",
+      "sha256": "31d06a0d784c79d6577a9e48593f8b28e68e1b01359bcd11e70c4c392c90505d",
+      "url": "packs/jailbreak/itw-e87c00ec15.yaml"
+    }
+  ]
+}

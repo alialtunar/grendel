@@ -1,0 +1,41 @@
+name: feed-refresh
+
+# Keeps the GitHub-hosted attack feed fresh from garak's Apache-2.0 corpora, so users get new
+# attacks via `grendel update` without anyone installing garak or hand-editing packs. Runs weekly
+# (and on demand); if anything new is found it opens a PR for a human to merge.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # every Monday 06:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install grendel + garak
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[corpora]"
+      - name: Refresh the feed from garak
+        run: python scripts/refresh_feed.py
+      - name: Open a PR if the feed changed
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: feed-refresh
+          title: "chore(feed): refresh attacks from garak"
+          commit-message: "chore(feed): refresh attacks from garak"
+          body: |
+            Automated weekly feed refresh — new Apache-2.0 attacks imported from garak and added to
+            `feeds/`. `grendel update` will serve these once merged. Review and merge if the new
+            packs look good.
+          add-paths: |
+            feeds/**

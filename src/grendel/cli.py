@@ -786,7 +786,18 @@ def update(
     config: ConfigOpt = None,
 ) -> None:
     """Pull versioned packs from configured feeds into the feed cache."""
+    from .config import DEFAULT_FEED, DEFAULT_FEED_CACHE_DIR
+
     cfg = _resolve_config(ctx, config)
+
+    # Zero-config default: with no feeds configured, pull from grendel's own hosted feed into a
+    # default cache dir (which load_catalog also reads back), so `grendel update` works out of the
+    # box without the user hosting or wiring anything.
+    if not cfg.catalog.feeds:
+        cfg.catalog.feeds = [DEFAULT_FEED]
+        if cfg.catalog.feed_cache_dir is None:
+            cfg.catalog.feed_cache_dir = DEFAULT_FEED_CACHE_DIR
+        typer.echo(f"using the default grendel feed -> {cfg.catalog.feed_cache_dir}")
 
     # Fix #9: --feed NAME that matches no configured feed is a usage error.
     if feed is not None and feed not in {f.name for f in cfg.catalog.feeds}:

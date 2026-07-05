@@ -21,3 +21,6 @@ dist/
 # Imported open-corpus catalog — regenerated with one `grendel import` (not committed;
 # may include toxicity prompts). Wire it via catalog.pack_dirs / --pack-dir.
 catalog/
+
+# grendel update writes pulled feed packs here
+/feed_cache/

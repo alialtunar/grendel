@@ -11,7 +11,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   refresh:
@@ -27,15 +26,11 @@ jobs:
           pip install -e ".[corpora]"
       - name: Refresh the feed from garak
         run: python scripts/refresh_feed.py
-      - name: Open a PR if the feed changed
-        uses: peter-evans/create-pull-request@v6
-        with:
-          branch: feed-refresh
-          title: "chore(feed): refresh attacks from garak"
-          commit-message: "chore(feed): refresh attacks from garak"
-          body: |
-            Automated weekly feed refresh — new Apache-2.0 attacks imported from garak and added to
-            `feeds/`. `grendel update` will serve these once merged. Review and merge if the new
-            packs look good.
-          add-paths: |
-            feeds/**
+      - name: Commit straight to master if the feed changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add feeds/
+          git diff --cached --quiet && { echo "no new attacks"; exit 0; }
+          git commit -m "chore(feed): refresh attacks from garak [skip ci]"
+          git push

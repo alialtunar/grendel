@@ -253,13 +253,8 @@ def load_catalog(
     # (source, dir, armed), loaded in fixed precedence order (spec §5.1).
     plan: list[tuple[Source, Path, bool]] = [(Source.BUNDLED, default_packs_dir(), True)]
     plan += [(Source.USER, Path(d), True) for d in cat.pack_dirs]
-    # Feed cache: the configured dir, else grendel's default cache dir (so a zero-config
-    # `grendel update` is read back here). An absent dir contributes zero (the .is_dir() gate
-    # below), so "empty config == bundled-only" still holds until the user actually pulls.
-    from .config import DEFAULT_FEED_CACHE_DIR
-
-    feed_cache = cat.feed_cache_dir if cat.feed_cache_dir is not None else DEFAULT_FEED_CACHE_DIR
-    plan.append((Source.FEED, Path(feed_cache), True))
+    if cat.feed_cache_dir is not None:
+        plan.append((Source.FEED, Path(cat.feed_cache_dir), True))
     if cat.staged_dir is not None:
         plan.append((Source.STAGED, Path(cat.staged_dir), False))
 

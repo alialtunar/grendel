@@ -302,6 +302,7 @@ def _build_judge_scorer(cfg, *, dry_run: bool):
 
 
 _CLI_TARGET_NAME = "cli"  # synthetic name for a flag-defined target injected into cfg.targets
+_JUDGE_TARGET_NAME = "judge"  # synthetic name for an ad-hoc T3 judge model, injected for one run
 
 
 def _cli_target(
@@ -2415,6 +2416,49 @@ def _offer_to_set_key(missing: str) -> bool:
     return True
 
 
+def _prompt_judge(run_cfg):
+    """Offer the optional T3 LLM judge before firing (TTY only). Returns run_cfg — the judge wired
+    onto a throwaway copy if the user opts in, else unchanged. Off-TTY (tests/pipes) or an
+    already-configured judge is left to config, so scripted runs stay byte-identical.
+
+    Declining is explicit: the user is told nothing goes to an LLM (borderline replies stay at the
+    local T2 scorer), matching the promise that no LLM is touched unless you choose one.
+    """
+    import sys
+
+    from .config import build_cli_target_config
+
+    if not sys.stdin.isatty() or run_cfg.judge.enabled:
+        return run_cfg
+    typer.echo("  T3 LLM judge: an extra LLM re-grades only the borderline replies (more accurate,")
+    typer.echo("  a few paid API calls). Skip it and those cases stay at the local T2 scorer.")
+    if not typer.confirm("  add an LLM judge?", default=False):
+        typer.echo("  no judge — borderline replies stay local (T2). Nothing is sent to an LLM.")
+        return run_cfg
+    provider = _prompt_provider(run_cfg)
+    if provider is None or provider == _ADD_CUSTOM:
+        typer.echo("  a judge needs a hosted model — skipping (no judge).")
+        return run_cfg
+    model = _prompt_model(provider, run_cfg)
+    if not model:
+        typer.echo("  no model picked — skipping (no judge).")
+        return run_cfg
+    try:
+        tc = build_cli_target_config(provider=provider, model=model)
+        run_cfg = run_cfg.with_cli_target(_JUDGE_TARGET_NAME, tc)  # throwaway copy; not session cfg
+    except ConfigError as exc:
+        typer.echo(f"  judge setup error: {exc} — skipping (no judge).")
+        return run_cfg
+    run_cfg.judge.enabled = True
+    run_cfg.judge.target = _JUDGE_TARGET_NAME
+    missing = _missing_run_key(_JUDGE_TARGET_NAME, run_cfg)
+    if missing:
+        typer.echo(f"  ⚠ {missing} is not set for the judge.")
+        _offer_to_set_key(missing)
+    typer.echo(f"  judge on: {provider}/{model} will grade borderline replies (T3).")
+    return run_cfg
+
+
 def _fire_and_report(run_cfg, target) -> None:
     """Fire every attack at ``target`` in ``run_cfg``, then show the report card + results browser.
 
@@ -2440,6 +2484,7 @@ def _fire_and_report(run_cfg, target) -> None:
     if not typer.confirm(f"  fire {label}?", default=not missing):
         typer.echo("  cancelled")
         return
+    run_cfg = _prompt_judge(run_cfg)  # optional T3 LLM judge (TTY only); off-TTY keeps config
     adapter = build_target(target, run_cfg, dry_run=False)
     # Wire scoring/judge from config, same as the `run` subcommand — else cfg.scoring and any
     # enabled judge are silently ignored on this menu path.

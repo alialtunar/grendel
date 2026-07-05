@@ -120,6 +120,24 @@ def test_home_menu_guided_setup_runs_the_flow(tmp_path, monkeypatch) -> None:
     assert "fire 1 attack(s)" in result.output  # it reached the normal run confirm
 
 
+def test_prompt_judge_offtty_is_noop() -> None:
+    # Off-TTY (tests/pipes) the run flow must not prompt for a judge — config drives it, so
+    # scripted menu runs stay byte-identical.
+    cfg = load_config(None)
+    assert cfg.judge.enabled is False
+    assert cli._prompt_judge(cfg) is cfg  # unchanged, no judge wired
+
+
+def test_prompt_judge_decline_stays_local(monkeypatch, capsys) -> None:
+    # On a TTY, declining the judge must leave it OFF and tell the user nothing goes to an LLM.
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr(cli.typer, "confirm", lambda *a, **k: False)
+    cfg = load_config(None)
+    out = cli._prompt_judge(cfg)
+    assert out.judge.enabled is False
+    assert "Nothing is sent to an LLM" in capsys.readouterr().out
+
+
 def test_home_menu_guided_key_gated_once_targets_exist(tmp_path, monkeypatch) -> None:
     # With a target configured the [1] line is hidden AND typing '1' must not launch guided setup.
     (tmp_path / "grendel.yaml").write_text(

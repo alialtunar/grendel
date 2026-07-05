@@ -2333,8 +2333,9 @@ def _run_progress(total: int):
     return cb
 
 
-def _missing_run_key(target: str, cfg) -> str | None:
-    """The API-key env var a real run needs but that is unset, or None if the key is present/N/A."""
+def _key_env_for(target: str, cfg) -> str | None:
+    """The api_key_env var name a real run uses for ``target`` (set or not), or None if no key is
+    needed (keyless provider / unresolvable target)."""
     try:
         info = resolve_target_info(target, cfg)
         preset = resolve_provider(info["provider"], cfg)
@@ -2343,10 +2344,76 @@ def _missing_run_key(target: str, cfg) -> str | None:
     if not preset.requires_key:
         return None
     tc = cfg.targets.get(target)
-    key_env = getattr(tc, "api_key_env", None) or preset.api_key_env
+    return getattr(tc, "api_key_env", None) or preset.api_key_env
+
+
+def _missing_run_key(target: str, cfg) -> str | None:
+    """The API-key env var a real run needs but that is unset, or None if the key is present/N/A."""
+    key_env = _key_env_for(target, cfg)
     if key_env and not os.environ.get(key_env):
         return key_env
     return None
+
+
+def _validate_key(target: str, cfg) -> str:
+    """Preflight the resolved API key for ``target`` against its provider (a keyless ``/models``
+    GET — no completion cost). Returns ``check_api_key``'s status ('ok'/'auth'/'unreachable') or
+    'unknown' when there's nothing to check (no key resolved / keyless / unverifiable style)."""
+    from .targets.model_list import check_api_key
+
+    key_env = _key_env_for(target, cfg)
+    key = os.environ.get(key_env) if key_env else None
+    if not key:
+        return "unknown"
+    try:
+        info = resolve_target_info(target, cfg)
+        preset = resolve_provider(info["provider"], cfg)
+    except ConfigError:
+        return "unknown"
+    return check_api_key(preset, key, base_url=info.get("base_url"))
+
+
+def _preflight_key(target: str, cfg, *, what: str = "target") -> bool:
+    """Verify ``target``'s API key before firing (TTY only); on a rejected key, let the user
+    re-enter it and re-check. Returns True when the key is usable OR unverifiable (never block on a
+    hiccup), False only when the provider definitively rejected the key and the user didn't fix it.
+
+    Off-TTY (tests / pipes) it's a quiet no-op (True) so scripted runs make no network call and stay
+    byte-identical. The missing-key case is handled by the caller (``_offer_to_set_key``); here the
+    key is present but may be wrong — the gap the judge/target key check closes.
+    """
+    import sys
+
+    from .secrets import LOCAL_SECRETS_FILE, save_local_secret
+
+    if not sys.stdout.isatty() or _missing_run_key(target, cfg) is not None:
+        return True
+    env = _key_env_for(target, cfg)
+    for _ in range(3):
+        status = _validate_key(target, cfg)
+        if status == "ok":
+            typer.echo(f"  ✓ {what} API key verified.")
+            return True
+        if status == "unreachable":
+            typer.echo(f"  (couldn't reach the {what} to verify the key — continuing anyway.)")
+            return True
+        if status == "unknown":
+            return True  # nothing to check / non-auth response — don't block
+        # status == "auth": the provider rejected this key.
+        typer.echo(f"  ✗ the {what} API key ({env}) was rejected by the provider (HTTP 401/403).")
+        if not sys.stdin.isatty() or not typer.confirm("  re-enter it now?", default=True):
+            return False
+        value = typer.prompt("  value", hide_input=True).strip()
+        if not value:
+            return False
+        try:
+            save_local_secret(env, value, Path(LOCAL_SECRETS_FILE))
+        except ConfigError as exc:
+            typer.echo(f"  error: {exc}")
+            return False
+        os.environ[env] = value  # replace the bad key for this session (not setdefault)
+        typer.echo(f"  saved {env} -> {LOCAL_SECRETS_FILE} (gitignored) [{_mask(value)}]")
+    return False
 
 
 def _menu_run(cfg):
@@ -2455,6 +2522,14 @@ def _prompt_judge(run_cfg):
     if missing:
         typer.echo(f"  ⚠ {missing} is not set for the judge.")
         _offer_to_set_key(missing)
+    # Catch a wrong key BEFORE firing: without this a bad judge key silently errors every
+    # borderline reply mid-run. If it can't be made to work, drop the judge (stay local T2).
+    if not _preflight_key(_JUDGE_TARGET_NAME, run_cfg, what="judge"):
+        typer.echo("  judge key not verified — borderline replies would just error. No judge;")
+        typer.echo("  those cases stay at the local T2 scorer. Nothing is sent to an LLM.")
+        run_cfg.judge.enabled = False
+        run_cfg.judge.target = None
+        return run_cfg
     typer.echo(f"  judge on: {provider}/{model} will grade borderline replies (T3).")
     return run_cfg
 
@@ -2481,7 +2556,10 @@ def _fire_and_report(run_cfg, target) -> None:
         typer.echo(f"  ⚠ {missing} is not set — attacks will just error without it.")
         if _offer_to_set_key(missing):
             missing = None
-    if not typer.confirm(f"  fire {label}?", default=not missing):
+    # Key present but possibly wrong: verify it now (TTY) so a bad key doesn't make every attack
+    # error. On a definitive rejection the fire prompt defaults to "no".
+    key_ok = _preflight_key(target, run_cfg, what="target") if not missing else False
+    if not typer.confirm(f"  fire {label}?", default=key_ok):
         typer.echo("  cancelled")
         return
     run_cfg = _prompt_judge(run_cfg)  # optional T3 LLM judge (TTY only); off-TTY keeps config
@@ -2629,6 +2707,67 @@ def _menu_reports(cfg):
     return cfg
 
 
+# --- "more" submenu: the less-common actions, grouped off the main menu -----------------------
+def _more_letter(cfg):
+    """Advanced/occasional actions (packs, catalog, import, doctor, settings) — kept off the main
+    menu so a newcomer's first screen stays short. Returns the (possibly new) config."""
+    while True:
+        typer.echo("more:")
+        typer.echo("  [p] packs     · browse the attack catalog")
+        typer.echo(f"  [g] catalog   · {len(cfg.catalog.pack_dirs)} pack dir(s) (load sources)")
+        typer.echo("  [i] import    · grow the catalog from a corpus")
+        typer.echo("  [o] doctor    · status & diagnostics")
+        typer.echo("  [a] settings  · run / judge / proxy")
+        typer.echo("  [b] back")
+        ch = typer.prompt("more", default="b").strip().lower()
+        if ch == "p":
+            cfg = _menu_packs(cfg)
+        elif ch == "g":
+            cfg = _catalog_letter(cfg)
+        elif ch == "i":
+            cfg = _menu_import_letter(cfg)
+        elif ch == "o":
+            _menu_doctor(cfg)
+        elif ch == "a":
+            cfg = _settings_letter(cfg)
+        elif ch in ("b", ""):
+            return cfg
+        else:
+            typer.echo(f"  unknown option {ch!r}")
+
+
+def _more_questionary(cfg):
+    """Arrow-key 'more' submenu mirroring ``_more_letter``."""
+    import questionary
+
+    while True:
+        action = questionary.select(
+            "more",
+            choices=[
+                questionary.Choice("packs · browse the attack catalog", "packs"),
+                questionary.Choice(
+                    f"catalog · {len(cfg.catalog.pack_dirs)} pack dir(s) (load sources)", "catalog"
+                ),
+                questionary.Choice("import · grow the catalog from a corpus", "import"),
+                questionary.Choice("doctor · status & diagnostics", "doctor"),
+                questionary.Choice("settings · run / judge / proxy", "settings"),
+                questionary.Choice("back", "back"),
+            ],
+        ).ask()
+        if action in (None, "back"):
+            return cfg
+        if action == "packs":
+            cfg = _menu_packs(cfg)
+        elif action == "catalog":
+            cfg = _catalog_questionary(cfg)
+        elif action == "import":
+            cfg = _menu_import_letter(cfg)
+        elif action == "doctor":
+            _menu_doctor(cfg)
+        elif action == "settings":
+            cfg = _settings_questionary(cfg)
+
+
 # --- the home menu (bare `grendel` on a TTY) --------------------------------------------------
 def _home_letter(cfg, path: Path, *, unicode: bool = True) -> None:
     import sys
@@ -2643,40 +2782,28 @@ def _home_letter(cfg, path: Path, *, unicode: bool = True) -> None:
         typer.echo(config_header(path, unicode=unicode))
         if not cfg.targets:  # newcomer → offer the guided path first
             typer.echo("  [1] guided setup · set up and run your first test (start here)")
+        typer.echo("  [x] run       · fire attacks at a target")
         typer.echo(f"  [t] targets   · {len(cfg.targets)} configured")
         typer.echo("  [k] api keys  · set / check provider keys")
-        typer.echo("  [p] packs     · browse the attack catalog")
-        typer.echo(f"  [g] catalog   · {len(cfg.catalog.pack_dirs)} pack dir(s) (load sources)")
-        typer.echo("  [x] run       · fire attacks at a target")
         typer.echo("  [r] reports   · view a past run's report")
-        typer.echo("  [i] import    · grow the catalog from a corpus")
-        typer.echo("  [o] doctor    · status & diagnostics")
-        typer.echo("  [a] settings  · run / judge / proxy")
         typer.echo("  [?] learn     · what everything means (plain language)")
+        typer.echo("  [m] more      · packs · catalog · import · doctor · settings")
         typer.echo("  [s] save & quit    [q] quit without saving")
         choice = typer.prompt("select", default="q").strip().lower()
         if choice == "1" and not cfg.targets:  # gated like the [1] line above (hidden once set up)
             cfg = _menu_quickstart(cfg)
         elif choice == "?":
             _menu_learn(cfg)
+        elif choice == "x":
+            cfg = _menu_run(cfg)
         elif choice == "t":
             cfg = _targets_letter(cfg)
         elif choice == "k":
             cfg = _api_keys_letter(cfg)
-        elif choice == "p":
-            cfg = _menu_packs(cfg)
-        elif choice == "g":
-            cfg = _catalog_letter(cfg)
-        elif choice == "x":
-            cfg = _menu_run(cfg)
         elif choice == "r":
             cfg = _menu_reports(cfg)
-        elif choice == "i":
-            cfg = _menu_import_letter(cfg)
-        elif choice == "o":
-            _menu_doctor(cfg)
-        elif choice == "a":
-            cfg = _settings_letter(cfg)
+        elif choice == "m":
+            cfg = _more_letter(cfg)
         elif choice == "s":
             if _save_config_and_report(cfg, path):
                 return
@@ -2708,18 +2835,12 @@ def _home_questionary(cfg, path: Path, *, unicode: bool = True) -> None:
             config_header(path, unicode=unicode),
             choices=[
                 *guided,
+                questionary.Choice("run · fire attacks at a target", "run"),
                 questionary.Choice(f"targets · {len(cfg.targets)} configured", "targets"),
                 questionary.Choice("api keys · set / check provider keys", "apikeys"),
-                questionary.Choice("packs · browse the attack catalog", "packs"),
-                questionary.Choice(
-                    f"catalog · {len(cfg.catalog.pack_dirs)} pack dir(s) (load sources)", "catalog"
-                ),
-                questionary.Choice("run · fire attacks at a target", "run"),
                 questionary.Choice("reports · view a past run's report", "reports"),
-                questionary.Choice("import · grow the catalog", "import"),
-                questionary.Choice("doctor · status & diagnostics", "doctor"),
-                questionary.Choice("settings · run / judge / proxy", "settings"),
                 questionary.Choice("learn · what everything means (plain language)", "learn"),
+                questionary.Choice("more · packs, catalog, import, doctor, settings", "more"),
                 questionary.Separator(),
                 questionary.Choice("save & quit", "save"),
                 questionary.Choice("quit without saving", "quit"),
@@ -2732,24 +2853,16 @@ def _home_questionary(cfg, path: Path, *, unicode: bool = True) -> None:
             cfg = _menu_quickstart(cfg)
         elif choice == "learn":
             _menu_learn(cfg)
+        elif choice == "run":
+            cfg = _menu_run(cfg)
         elif choice == "targets":
             cfg = _targets_questionary(cfg)
         elif choice == "apikeys":
             cfg = _api_keys_questionary(cfg)
-        elif choice == "packs":
-            cfg = _menu_packs(cfg)
-        elif choice == "catalog":
-            cfg = _catalog_questionary(cfg)
-        elif choice == "run":
-            cfg = _menu_run(cfg)
         elif choice == "reports":
             cfg = _menu_reports(cfg)
-        elif choice == "import":
-            cfg = _menu_import_letter(cfg)
-        elif choice == "doctor":
-            _menu_doctor(cfg)
-        elif choice == "settings":
-            cfg = _settings_questionary(cfg)
+        elif choice == "more":
+            cfg = _more_questionary(cfg)
         elif choice == "save":
             if _save_config_and_report(cfg, path):
                 return

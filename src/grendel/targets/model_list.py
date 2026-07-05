@@ -52,3 +52,50 @@ def fetch_models(
         return out
     except Exception:  # noqa: BLE001 — discovery is best-effort; any failure → static fallback
         return []
+
+
+def check_api_key(
+    preset: ProviderPreset,
+    api_key: str | None,
+    *,
+    base_url: str | None = None,
+    client=None,
+    timeout=6.0,
+) -> str:
+    """Preflight a provider API key against its ``/models`` endpoint (no completion cost).
+
+    Returns one of:
+      ``"ok"``          the endpoint answered 2xx — the key authenticates.
+      ``"auth"``        the endpoint rejected the key (HTTP 401/403) — the key is wrong.
+      ``"unreachable"`` the endpoint could not be reached (network / timeout / bad URL).
+      ``"unknown"``     nothing checkable (no key needed, custom/ollama style, no base_url), or
+                        the endpoint answered a non-2xx that isn't an auth failure.
+
+    Never raises; a check is best-effort and only ever tightens the UX (a wrong key is caught
+    before firing). ``base_url`` overrides ``preset.base_url`` (for openai-compatible targets whose
+    URL lives on the target, not the preset).
+    """
+    base = (base_url or preset.base_url or "").rstrip("/")
+    # Nothing to authenticate against: local/keyless, custom shape, or no endpoint to probe.
+    if not preset.requires_key or not api_key or not base:
+        return "unknown"
+    if preset.api_style in ("custom", "ollama"):
+        return "unknown"
+    if preset.api_style == "anthropic":
+        url, headers = f"{base}/models", {**preset.default_headers, "x-api-key": api_key}
+    else:  # openai + openai-compatible
+        url, headers = f"{base}/models", {"Authorization": f"Bearer {api_key}"}
+    owns = client is None
+    c = client or httpx.Client(timeout=timeout)
+    try:
+        resp = c.get(url, headers=headers, timeout=timeout)
+    except Exception:  # noqa: BLE001 — network / DNS / timeout → can't tell if the key is good
+        return "unreachable"
+    finally:
+        if owns:
+            c.close()
+    if 200 <= resp.status_code < 300:
+        return "ok"
+    if resp.status_code in (401, 403):
+        return "auth"
+    return "unknown"  # 404/5xx/etc: endpoint exists but says nothing about the key — don't block

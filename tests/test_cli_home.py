@@ -78,6 +78,17 @@ def test_home_menu_welcome_shown_when_no_targets(tmp_path, monkeypatch) -> None:
     assert "Get started:" in result.output and "add a target" in result.output
 
 
+def test_home_menu_is_uncluttered_advanced_items_behind_more(tmp_path, monkeypatch) -> None:
+    # The first screen stays short: the occasional actions live under a single 'more' entry, not
+    # as top-level rows competing with the primary workflow (the newcomer-overload fix).
+    result = _menu(monkeypatch, tmp_path, "q\n")
+    assert result.exit_code == 0, result.output
+    home = result.output.split("select")[0]  # only the top-level menu, before any submenu
+    assert "[m] more" in home
+    for advanced in ("[i] import", "[o] doctor", "[a] settings", "[g] catalog", "[p] packs"):
+        assert advanced not in home  # moved into the 'more' submenu
+
+
 def test_render_concepts_explains_the_jargon() -> None:
     from grendel.banner import render_concepts
 
@@ -138,6 +149,58 @@ def test_prompt_judge_decline_stays_local(monkeypatch, capsys) -> None:
     assert "Nothing is sent to an LLM" in capsys.readouterr().out
 
 
+def test_preflight_key_offtty_is_noop(monkeypatch) -> None:
+    # Off-TTY (tests/pipes) the preflight makes no network call and never blocks.
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+    assert cli._preflight_key("cli", load_config(None)) is True
+
+
+def test_preflight_key_verified_returns_true(monkeypatch, capsys) -> None:
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(cli, "_missing_run_key", lambda t, c: None)
+    monkeypatch.setattr(cli, "_validate_key", lambda t, c: "ok")
+    assert cli._preflight_key("t", load_config(None), what="judge") is True
+    assert "judge API key verified" in capsys.readouterr().out
+
+
+def test_preflight_key_rejected_and_declined_returns_false(monkeypatch, capsys) -> None:
+    # A definitively rejected key (HTTP 401/403) with the user declining to re-enter → False.
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr(cli, "_missing_run_key", lambda t, c: None)
+    monkeypatch.setattr(cli, "_key_env_for", lambda t, c: "OPENAI_API_KEY")
+    monkeypatch.setattr(cli, "_validate_key", lambda t, c: "auth")
+    monkeypatch.setattr(cli.typer, "confirm", lambda *a, **k: False)
+    assert cli._preflight_key("t", load_config(None)) is False
+    assert "was rejected" in capsys.readouterr().out
+
+
+def test_prompt_judge_drops_judge_on_rejected_key(monkeypatch, capsys) -> None:
+    # The goal's core fix: a wrong judge key is caught up front and the judge is dropped (stays
+    # local T2) instead of silently erroring every borderline reply mid-run.
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-set")  # key present → no missing-key prompt
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr(cli.typer, "confirm", lambda *a, **k: True)  # yes, add a judge
+    monkeypatch.setattr(cli, "_prompt_provider", lambda cfg: "openai")
+    monkeypatch.setattr(cli, "_prompt_model", lambda provider, cfg: "gpt-4o-mini")
+    monkeypatch.setattr(cli, "_preflight_key", lambda *a, **k: False)  # provider rejects the key
+    out = cli._prompt_judge(load_config(None))
+    assert out.judge.enabled is False and out.judge.target is None
+    assert "judge key not verified" in capsys.readouterr().out
+
+
+def test_prompt_judge_enables_on_verified_key(monkeypatch, capsys) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-set")
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr(cli.typer, "confirm", lambda *a, **k: True)
+    monkeypatch.setattr(cli, "_prompt_provider", lambda cfg: "openai")
+    monkeypatch.setattr(cli, "_prompt_model", lambda provider, cfg: "gpt-4o-mini")
+    monkeypatch.setattr(cli, "_preflight_key", lambda *a, **k: True)
+    out = cli._prompt_judge(load_config(None))
+    assert out.judge.enabled is True and out.judge.target == cli._JUDGE_TARGET_NAME
+    assert "judge on:" in capsys.readouterr().out
+
+
 def test_home_menu_guided_key_gated_once_targets_exist(tmp_path, monkeypatch) -> None:
     # With a target configured the [1] line is hidden AND typing '1' must not launch guided setup.
     (tmp_path / "grendel.yaml").write_text(
@@ -163,29 +226,30 @@ def test_home_menu_welcome_hidden_once_a_target_exists(tmp_path, monkeypatch) ->
 
 
 def test_home_menu_packs_lists_attacks(tmp_path, monkeypatch) -> None:
-    # p -> packs, blank category (all) -> lists bundled attack ids, then q
-    result = _menu(monkeypatch, tmp_path, "p\n\nq\n")
+    # m -> more, p -> packs, blank category (all) -> lists bundled attack ids, back, then q
+    result = _menu(monkeypatch, tmp_path, "m\np\n\nb\nq\n")
     assert result.exit_code == 0, result.output
     assert "attacks · categories:" in result.output
     assert "jailbreak/advbench-" in result.output  # a bundled attack id is listed (first 50)
 
 
 def test_home_menu_packs_filter_by_category(tmp_path, monkeypatch) -> None:
-    result = _menu(monkeypatch, tmp_path, "p\njailbreak\nq\n")
+    result = _menu(monkeypatch, tmp_path, "m\np\njailbreak\nb\nq\n")
     assert result.exit_code == 0, result.output
     assert "jailbreak/advbench-" in result.output
     assert "prompt-injection/" not in result.output  # filtered out
 
 
 def test_home_menu_doctor_entry(tmp_path, monkeypatch) -> None:
-    result = _menu(monkeypatch, tmp_path, "o\nq\n")
+    # m -> more, o -> doctor, back, then q
+    result = _menu(monkeypatch, tmp_path, "m\no\nb\nq\n")
     assert result.exit_code == 0, result.output
     assert "Install" in result.output and "Catalog" in result.output
 
 
 def test_home_menu_settings_edits_and_saves(tmp_path, monkeypatch) -> None:
-    # a -> settings, r -> run, concurrency 7, b -> back, s -> save
-    result = _menu(monkeypatch, tmp_path, "a\nr\n\n7\n\n\nb\ns\n")
+    # m -> more, a -> settings, r -> run, concurrency 7, b (exit settings), b (exit more), save
+    result = _menu(monkeypatch, tmp_path, "m\na\nr\n\n7\n\n\nb\nb\ns\n")
     assert result.exit_code == 0, result.output
     assert "saved ->" in result.output
     cfg = load_config(tmp_path / "grendel.yaml")
@@ -417,8 +481,8 @@ def test_home_menu_reports_empty(tmp_path, monkeypatch) -> None:
 
 
 def test_home_menu_import_wires_catalog(tmp_path, monkeypatch) -> None:
-    # i -> import, out dir default 'catalog', path = FIXTURE, limit blank, then save & quit
-    result = _menu(monkeypatch, tmp_path, f"i\n\n{FIXTURE}\n\ns\n")
+    # m -> more, i -> import, out dir default 'catalog', path = FIXTURE, limit blank, back, save
+    result = _menu(monkeypatch, tmp_path, f"m\ni\n\n{FIXTURE}\n\nb\ns\n")
     assert result.exit_code == 0, result.output
     assert "imported" in result.output and "wired" in result.output
     cfg = load_config(tmp_path / "grendel.yaml")

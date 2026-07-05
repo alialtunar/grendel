@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 # PyPI/install name ("grendel" is taken on PyPI); the command + import name stay `grendel`.
 name = "grendel-redteam"
-version = "0.1.4"
+version = "0.1.5"
 description = "Red-team your AI agents: a CLI that fires authorized attacks at LLM and agent targets."
 readme = "README.md"
 requires-python = ">=3.11"

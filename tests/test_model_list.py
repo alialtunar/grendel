@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import httpx
 
-from grendel.targets.model_list import fetch_models
+from grendel.targets.model_list import check_api_key, fetch_models
 from grendel.targets.providers import PRESETS
 
 
@@ -108,3 +108,66 @@ def test_openai_compatible_has_no_base_url_returns_empty() -> None:
 def test_static_fallback_lists_are_nontrivial() -> None:
     for name in ("openai", "anthropic", "ollama"):
         assert len(PRESETS[name].models) >= 5
+
+
+# --- check_api_key: preflight a key against /models, classify the outcome ----------------------
+def test_check_api_key_ok_on_2xx() -> None:
+    def handler(req: httpx.Request) -> httpx.Response:
+        assert req.url.path == "/v1/models"
+        assert req.headers.get("authorization") == "Bearer sk-good"
+        return httpx.Response(200, json={"data": []})
+
+    with _client(handler) as c:
+        assert check_api_key(PRESETS["openai"], "sk-good", client=c) == "ok"
+
+
+def test_check_api_key_auth_on_401_and_403() -> None:
+    for status in (401, 403):
+        with _client(lambda req, s=status: httpx.Response(s, json={"error": "no"})) as c:
+            assert check_api_key(PRESETS["openai"], "sk-bad", client=c) == "auth"
+
+
+def test_check_api_key_anthropic_uses_x_api_key() -> None:
+    seen: dict = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen["x-api-key"] = req.headers.get("x-api-key")
+        return httpx.Response(200, json={"data": []})
+
+    with _client(handler) as c:
+        assert check_api_key(PRESETS["anthropic"], "ak-1", client=c) == "ok"
+    assert seen["x-api-key"] == "ak-1"
+
+
+def test_check_api_key_unreachable_on_network_error() -> None:
+    def handler(req: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("boom")
+
+    with _client(handler) as c:
+        assert check_api_key(PRESETS["openai"], "sk", client=c) == "unreachable"
+
+
+def test_check_api_key_unknown_on_other_status() -> None:
+    with _client(lambda req: httpx.Response(500, json={"error": "srv"})) as c:
+        assert check_api_key(PRESETS["openai"], "sk", client=c) == "unknown"
+
+
+def test_check_api_key_unknown_when_nothing_to_check() -> None:
+    # keyless / no-key / custom-or-ollama style / no base_url → nothing to authenticate
+    assert check_api_key(PRESETS["openai"], None) == "unknown"  # no key
+    assert check_api_key(PRESETS["ollama"], "k") == "unknown"  # keyless style
+    assert check_api_key(PRESETS["openai-compatible"], "k") == "unknown"  # no base_url
+
+
+def test_check_api_key_base_url_override() -> None:
+    seen: dict = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen["host"] = req.url.host
+        return httpx.Response(200, json={"data": []})
+
+    with _client(handler) as c:
+        # openai-compatible has no preset base_url; the override supplies it
+        preset = PRESETS["openai-compatible"].model_copy(update={"requires_key": True})
+        assert check_api_key(preset, "k", base_url="http://local:9/v1", client=c) == "ok"
+    assert seen["host"] == "local"
